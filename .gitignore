@@ -24,13 +24,3 @@ tunnel_log.txt
 # OS
 Thumbs.db
 .DS_Store
-
-# Database
-graph.db
-graph.db-shm
-graph.db-wal
-
-# Uploads
-uploads/
-tunnel.log
-test_prompt.py

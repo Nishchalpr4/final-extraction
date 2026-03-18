@@ -110,7 +110,11 @@ class GraphStore:
     def _refresh_alias_index(self):
         """Builds the alias-to-ID mapping from the database."""
         with self.db._get_connection() as conn:
-            cursor = conn.cursor()
+            if self.db.is_postgres:
+                import psycopg2.extras
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            else:
+                cursor = conn.cursor()
             cursor.execute("SELECT id, name, aliases FROM entity_master")
             for row in cursor.fetchall():
                 entity_id = row['id']

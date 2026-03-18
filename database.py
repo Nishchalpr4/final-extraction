@@ -4,6 +4,10 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Try to import psycopg2 for Postgres support
 try:

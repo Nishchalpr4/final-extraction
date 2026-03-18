@@ -1,6 +1,9 @@
 import json
 from database import DatabaseManager
 from models import EntityType, RelationType, ALLOWED_RELATION_TRIPLES, ENTITY_TYPE_COLORS
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def seed():
     db = DatabaseManager()
