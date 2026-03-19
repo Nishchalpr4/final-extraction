@@ -1,4 +1,3 @@
-import sqlite3
 import json
 import logging
 import os
@@ -9,53 +8,39 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Try to import psycopg2 for Postgres support
-try:
-    import psycopg2
-    import psycopg2.extras
-    import psycopg2.errors
-    POSTGRES_AVAILABLE = True
-except ImportError:
-    POSTGRES_AVAILABLE = False
+# We strictly require psycopg2 for Postgres/Neon
+import psycopg2
+import psycopg2.extras
+import psycopg2.errors
 
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    def __init__(self, db_path: str = "graph.db"):
+    def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
-        self.db_path = db_path
-        self.is_postgres = bool(self.db_url and self.db_url.startswith("postgres"))
         
-        if self.is_postgres and not POSTGRES_AVAILABLE:
-            logger.error("DATABASE_URL is set but psycopg2 is not installed!")
-            self.is_postgres = False
+        if not self.db_url:
+            raise ValueError("DATABASE_URL environment variable is missing. Neon Postgres is required.")
+        
+        if not self.db_url.startswith("postgres"):
+            raise ValueError("DATABASE_URL must be a valid PostgreSQL connection string starting with 'postgres://'.")
 
         self._init_db()
 
     def _get_connection(self):
-        if self.is_postgres:
-            conn = psycopg2.connect(self.db_url)
-            return conn
-        else:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.row_factory = sqlite3.Row
-            return conn
+        """Returns a new psycopg2 connection to Neon Postgres."""
+        return psycopg2.connect(self.db_url)
 
     def _get_cursor(self, conn):
-        """Helper to get the right cursor factory for Postgres/SQLite."""
-        if self.is_postgres:
-            return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        return conn.cursor()
+        """Standardizes on DictCursor for robust row access (row['name'])."""
+        return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     def _init_db(self):
-        """Initializes the schema for the Investment Intelligence System."""
+        """Initializes the Neon Postgres schema."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
             
-            if not self.is_postgres:
-                cursor.execute("PRAGMA journal_mode=WAL;")
-
             # 1. Entity Master
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS entity_master (
@@ -63,8 +48,8 @@ class DatabaseManager:
                     name TEXT NOT NULL,
                     type TEXT NOT NULL,
                     color TEXT,
-                    attributes TEXT, -- JSON
-                    aliases TEXT,    -- JSON
+                    attributes TEXT, -- JSON string
+                    aliases TEXT,    -- JSON string
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -78,76 +63,44 @@ class DatabaseManager:
                     target_id TEXT NOT NULL,
                     relation TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(source_id) REFERENCES entity_master(id),
-                    FOREIGN KEY(target_id) REFERENCES entity_master(id)
+                    FOREIGN KEY(source_id) REFERENCES entity_master(id) ON DELETE CASCADE,
+                    FOREIGN KEY(target_id) REFERENCES entity_master(id) ON DELETE CASCADE
                 )
             """)
 
-            # 3. Assertions
-            if self.is_postgres:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS assertions (
-                        id SERIAL PRIMARY KEY,
-                        subject_id TEXT NOT NULL,
-                        subject_type TEXT NOT NULL,
-                        source_text TEXT,
-                        confidence FLOAT,
-                        status TEXT DEFAULT 'PENDING',
-                        document_name TEXT,
-                        section_ref TEXT,
-                        source_authority INTEGER DEFAULT 5,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-            else:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS assertions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        subject_id TEXT NOT NULL,
-                        subject_type TEXT NOT NULL,
-                        source_text TEXT,
-                        confidence FLOAT,
-                        status TEXT DEFAULT 'PENDING',
-                        document_name TEXT,
-                        section_ref TEXT,
-                        source_authority INTEGER DEFAULT 5,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
+            # 3. Assertions (Evidence)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS assertions (
+                    id SERIAL PRIMARY KEY,
+                    subject_id TEXT NOT NULL,
+                    subject_type TEXT NOT NULL,
+                    source_text TEXT,
+                    confidence FLOAT,
+                    status TEXT DEFAULT 'PENDING',
+                    document_name TEXT,
+                    section_ref TEXT,
+                    source_authority INTEGER DEFAULT 5,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
-            # 4. Quant Data
-            if self.is_postgres:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS quant_data (
-                        id SERIAL PRIMARY KEY,
-                        entity_id TEXT NOT NULL,
-                        metric TEXT NOT NULL,
-                        value REAL,
-                        unit TEXT,
-                        period TEXT,
-                        source_assertion_id INTEGER,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY(entity_id) REFERENCES entity_master(id),
-                        FOREIGN KEY(source_assertion_id) REFERENCES assertions(id)
-                    )
-                """)
-            else:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS quant_data (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        entity_id TEXT NOT NULL,
-                        metric TEXT NOT NULL,
-                        value REAL,
-                        unit TEXT,
-                        period TEXT,
-                        source_assertion_id INTEGER,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY(entity_id) REFERENCES entity_master(id),
-                        FOREIGN KEY(source_assertion_id) REFERENCES assertions(id)
-                    )
-                """)
+            # 4. Quant Data (Metrics)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS quant_data (
+                    id SERIAL PRIMARY KEY,
+                    entity_id TEXT NOT NULL,
+                    metric TEXT NOT NULL,
+                    value REAL,
+                    unit TEXT,
+                    period TEXT,
+                    source_assertion_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(entity_id) REFERENCES entity_master(id) ON DELETE CASCADE,
+                    FOREIGN KEY(source_assertion_id) REFERENCES assertions(id) ON DELETE CASCADE
+                )
+            """)
 
-            # 5. Ontology Rules
+            # 5. Ontology Rules (Dynamic Config)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ontology_rules (
                     key TEXT PRIMARY KEY,
@@ -156,31 +109,55 @@ class DatabaseManager:
                 )
             """)
 
+            # 6. Entity Type Discoveries
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS new_entity_types (
+                    id SERIAL PRIMARY KEY,
+                    suggested_label TEXT NOT NULL UNIQUE,
+                    rationale TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # 7. Relation Type Discoveries
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS new_relation_types (
+                    id SERIAL PRIMARY KEY,
+                    suggested_label TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    target_type TEXT NOT NULL,
+                    rationale TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             conn.commit()
-            logger.info(f"Database initialized. Type: {'Postgres' if self.is_postgres else 'SQLite'}")
+            logger.info("Neon Postgres Database initialized successfully.")
         finally:
             conn.close()
 
     def drop_all_tables(self):
+        """Wipes the database schema (DANGER)."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-            # PostgreSQL requires CASCADE for relations
-            cascade = " CASCADE" if self.is_postgres else ""
-            cursor.execute(f"DROP TABLE IF EXISTS entity_master{cascade}")
-            cursor.execute(f"DROP TABLE IF EXISTS relation_master{cascade}")
-            cursor.execute(f"DROP TABLE IF EXISTS assertions{cascade}")
-            cursor.execute(f"DROP TABLE IF EXISTS quant_data{cascade}")
-            cursor.execute(f"DROP TABLE IF EXISTS ontology_rules{cascade}")
+            cursor.execute("DROP TABLE IF EXISTS entity_master CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS relation_master CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS assertions CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS quant_data CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS ontology_rules CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS new_entity_types CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS new_relation_types CASCADE")
             conn.commit()
+            logger.warning("All Neon Postgres tables dropped.")
         finally:
             conn.close()
 
     def get_ontology(self):
+        """Fetches the current ontology rules from Neon."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
-            
             cursor.execute("SELECT key, data FROM ontology_rules")
             rows = cursor.fetchall()
             return {row['key']: json.loads(row['data']) for row in rows}
@@ -188,118 +165,104 @@ class DatabaseManager:
             conn.close()
 
     def update_ontology(self, key: str, data: list | dict):
+        """Upserts ontology rules into Neon."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
-            if self.is_postgres:
-                cursor.execute("""
-                    INSERT INTO ontology_rules (key, data, last_updated)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, last_updated = CURRENT_TIMESTAMP
-                """, (key, json.dumps(data)))
-            else:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO ontology_rules (key, data, last_updated)
-                    VALUES (?, ?, CURRENT_TIMESTAMP)
-                """, (key, json.dumps(data)))
+            cursor.execute("""
+                INSERT INTO ontology_rules (key, data, last_updated)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, last_updated = CURRENT_TIMESTAMP
+            """, (key, json.dumps(data)))
             conn.commit()
         finally:
             conn.close()
 
     def upsert_entity(self, entity_id: str, name: str, entity_type: str, color: str = None, attributes: dict = None, aliases: list = None):
+        """Upserts an entity into the master table."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
-            if self.is_postgres:
-                cursor.execute("""
-                    INSERT INTO entity_master (id, name, type, color, attributes, aliases, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (id) DO UPDATE SET
-                        name = EXCLUDED.name,
-                        type = EXCLUDED.type,
-                        color = COALESCE(EXCLUDED.color, entity_master.color),
-                        attributes = EXCLUDED.attributes,
-                        aliases = EXCLUDED.aliases,
-                        updated_at = CURRENT_TIMESTAMP
-                """, (entity_id, name, entity_type, color, json.dumps(attributes or {}), json.dumps(aliases or [])))
-            else:
-                cursor.execute("""
-                    INSERT INTO entity_master (id, name, type, color, attributes, aliases, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        type=excluded.type,
-                        color=COALESCE(excluded.color, entity_master.color),
-                        attributes=excluded.attributes,
-                        aliases=excluded.aliases,
-                        updated_at=CURRENT_TIMESTAMP
-                """, (entity_id, name, entity_type, color, json.dumps(attributes or {}), json.dumps(aliases or [])))
+            cursor.execute("""
+                INSERT INTO entity_master (id, name, type, color, attributes, aliases, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    type = EXCLUDED.type,
+                    color = COALESCE(EXCLUDED.color, entity_master.color),
+                    attributes = EXCLUDED.attributes,
+                    aliases = EXCLUDED.aliases,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (entity_id, name, entity_type, color, json.dumps(attributes or {}), json.dumps(aliases or [])))
             conn.commit()
         finally:
             conn.close()
 
     def add_relation(self, rel_id: str, source_id: str, target_id: str, relation: str):
+        """Adds a unique relation link to Neon."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
-            if self.is_postgres:
-                cursor.execute("""
-                    INSERT INTO relation_master (id, source_id, target_id, relation)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (id) DO NOTHING
-                """, (rel_id, source_id, target_id, relation))
-            else:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO relation_master (id, source_id, target_id, relation)
-                    VALUES (?, ?, ?, ?)
-                """, (rel_id, source_id, target_id, relation))
+            cursor.execute("""
+                INSERT INTO relation_master (id, source_id, target_id, relation)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+            """, (rel_id, source_id, target_id, relation))
             conn.commit()
         finally:
             conn.close()
 
     def add_assertion(self, subject_id: str, subject_type: str, source_text: str, confidence: float, document_name: str, section_ref: str, status: str = 'PENDING', source_authority: int = 5):
+        """Adds an evidence assertion and returns the auto-generated SERIAL ID."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
-                
-            if self.is_postgres:
-                cursor.execute("""
-                    INSERT INTO assertions (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-                """, (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority))
-                # With RealDictCursor, we access by name
-                row = cursor.fetchone()
-                assertion_id = row['id']
-            else:
-                cursor.execute("""
-                    INSERT INTO assertions (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority))
-                assertion_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO assertions (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """, (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority))
+            row = cursor.fetchone()
+            assertion_id = row['id']
             conn.commit()
             return assertion_id
         finally:
             conn.close()
 
     def add_quant_metric(self, entity_id: str, metric: str, value: float, unit: str, period: str, assertion_id: int = None):
+        """Adds a quantitative metric row to Neon."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
-            if self.is_postgres:
+            cursor.execute("""
+                INSERT INTO quant_data (entity_id, metric, value, unit, period, source_assertion_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (entity_id, metric, value, unit, period, assertion_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def add_discovery(self, d):
+        """Logs a newly discovered entity or relation type into its respective distinct table."""
+        conn = self._get_connection()
+        try:
+            cursor = self._get_cursor(conn)
+            if d.type == 'ENTITY':
                 cursor.execute("""
-                    INSERT INTO quant_data (entity_id, metric, value, unit, period, source_assertion_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (entity_id, metric, value, unit, period, assertion_id))
-            else:
+                    INSERT INTO new_entity_types (suggested_label, rationale)
+                    VALUES (%s, %s)
+                    ON CONFLICT (suggested_label) DO NOTHING
+                """, (d.suggested_label, getattr(d, 'rationale', None)))
+            elif d.type == 'RELATION' and getattr(d, 'source_type', None) and getattr(d, 'target_type', None):
                 cursor.execute("""
-                    INSERT INTO quant_data (entity_id, metric, value, unit, period, source_assertion_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (entity_id, metric, value, unit, period, assertion_id))
+                    INSERT INTO new_relation_types (suggested_label, source_type, target_type, rationale)
+                    VALUES (%s, %s, %s, %s)
+                """, (d.suggested_label, d.source_type, d.target_type, getattr(d, 'rationale', None)))
             conn.commit()
         finally:
             conn.close()
 
     def get_graph_data(self):
+        """Fetches all nodes and links for the UI visualization."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
@@ -311,21 +274,21 @@ class DatabaseManager:
                 node['attributes'] = json.loads(node['attributes'])
                 node['aliases'] = json.loads(node['aliases'])
                 
-                # Use %s for Postgres, ? for SQLite
-                param = "%s" if self.is_postgres else "?"
-                cursor.execute(f"""
+                # Fetch recent evidence
+                cursor.execute("""
                     SELECT status, confidence, source_text, document_name, section_ref, source_authority 
                     FROM assertions 
-                    WHERE subject_id = {param} AND subject_type = 'ENTITY' 
+                    WHERE subject_id = %s AND subject_type = 'ENTITY' 
                     ORDER BY timestamp DESC LIMIT 3
                 """, (node['id'],))
                 node['evidence'] = [dict(r) for r in cursor.fetchall()]
                 
-                cursor.execute(f"""
+                # Fetch metrics
+                cursor.execute("""
                     SELECT q.metric, q.value, q.unit, q.period, a.source_authority
                     FROM quant_data q
                     JOIN assertions a ON q.source_assertion_id = a.id
-                    WHERE q.entity_id = {param}
+                    WHERE q.entity_id = %s
                     ORDER BY a.source_authority DESC, a.timestamp DESC
                 """, (node['id'],))
                 
@@ -342,11 +305,10 @@ class DatabaseManager:
             links = []
             for row in cursor.fetchall():
                 link = dict(row)
-                param = "%s" if self.is_postgres else "?"
-                cursor.execute(f"""
+                cursor.execute("""
                     SELECT status, confidence, source_text, document_name, section_ref 
                     FROM assertions 
-                    WHERE subject_id = {param} AND subject_type = 'RELATION' 
+                    WHERE subject_id = %s AND subject_type = 'RELATION' 
                     ORDER BY timestamp DESC LIMIT 3
                 """, (link['id'],))
                 link['evidence'] = [dict(r) for r in cursor.fetchall()]
@@ -357,11 +319,7 @@ class DatabaseManager:
             conn.close()
 
     def seed_ontology(self):
-        """Seeds the initial ontology rules from base_ontology.json if NOT already present."""
-        import json
-        from pathlib import Path
-        
-        # Load from base_ontology.json
+        """Centralized seeder: Reads base_ontology.json and writes to Neon."""
         config_path = Path(__file__).parent / "base_ontology.json"
         if not config_path.exists():
             logger.warning("base_ontology.json not found. Skipping initial seed.")
@@ -376,4 +334,4 @@ class DatabaseManager:
         self.update_ontology("entity_colors", data.get("entity_colors", {}))
         self.update_ontology("extraction_rules", data.get("extraction_rules", []))
         
-        logger.info("Database ontology seeded successfully from base_ontology.json.")
+        logger.info("Neon Postgres ontology seeded successfully from base_ontology.json.")

@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import os
 import traceback
-
 from dotenv import load_dotenv
+
 load_dotenv()  # Load .env before other imports that read env vars
 
 from fastapi import FastAPI, HTTPException
@@ -25,14 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from graph_store import GraphStore, IngestionStore
+from graph_store import GraphStore
 from extraction import call_llm
-from ingestion import extract_text_from_pdf, generate_golden_chunk
-from fastapi import UploadFile, File
-import shutil
-import uuid
-import json
-
 
 # ────────────────────────────────────────────────────────────────────────
 # APP SETUP
@@ -45,15 +39,14 @@ app = FastAPI(
 )
 
 # Global graph store (persistent)
-DB_PATH = "graph.db"
-store = GraphStore(DB_PATH)
-ingest_store = IngestionStore()
+store = GraphStore()
 
 # Seed the database on startup within the server process (avoids locks)
 @app.on_event("startup")
 def startup_seed():
     print("SERVER STARTUP: Checking ontology updates...")
     try:
+        # Initial seed if empty
         store.db.seed_ontology()
         store.ontology = store.db.get_ontology()
         from validators import LogicGuard
@@ -73,10 +66,6 @@ async def reseed_ontology():
         return {"success": True, "message": "Ontology re-seeded successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-UPLOAD_DIR = "uploads"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -121,18 +110,28 @@ async def extract_entities(req: ExtractRequest):
         diff = store.ingest_extraction(payload, source_authority=req.source_authority)
 
         # Return diff + full graph state
+        full_graph = store.get_full_graph()
         return {
             "success": True,
-            "diff": diff,
-            "graph": store.get_graph_data(),
+            "diff": {
+                "new_entities": [e.canonical_name for e in payload.entities],  # Simple proxy for 'newness' for UI
+                "total_entities": full_graph['stats']['total_entities'],
+                "total_relations": full_graph['stats']['total_relations']
+            },
+            "graph": full_graph,
             "extraction": {
                 "entities_extracted": len(payload.entities),
                 "relations_extracted": len(payload.relations),
+                "thought_process": payload.thought_process,
+                "llm_analysis_summary": payload.llm_analysis_summary,
+                "analysis_attributes": payload.analysis_attributes.dict() if payload.analysis_attributes else None,
                 "abstentions": payload.abstentions,
+                "discoveries": [d.dict() for d in payload.discoveries],
             },
         }
 
     except Exception as e:
+        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -140,7 +139,7 @@ async def extract_entities(req: ExtractRequest):
 @app.get("/api/graph")
 async def get_graph():
     """Return the current full graph state."""
-    return store.get_graph_data()
+    return store.get_full_graph()
 
 
 @app.get("/api/log")
@@ -167,75 +166,12 @@ async def health():
 
 
 # ────────────────────────────────────────────────────────────────────────
-# INGESTION ROUTES
-# ────────────────────────────────────────────────────────────────────────
-
-@app.post("/api/ingest/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """Upload a PDF and return a temporary document ID."""
-    doc_id = str(uuid.uuid4())
-    file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{file.filename}")
-    
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    return {
-        "success": True, 
-        "doc_id": doc_id, 
-        "filename": file.filename, 
-        "file_path": file_path
-    }
-
-@app.post("/api/ingest/process")
-async def process_document(req: dict):
-    """
-    Process a PDF doc_id with metadata.
-    1. Extract text page-by-page.
-    2. Convert to Golden Chunks using LLM.
-    3. Store in IngestionStore.
-    """
-    doc_id = req.get("doc_id")
-    file_path = req.get("file_path")
-    metadata = req.get("metadata", {})
-    metadata["doc_id"] = doc_id
-    metadata["filename"] = file_path
-    
-    if not doc_id or not file_path:
-        raise HTTPException(status_code=400, detail="Missing doc_id or file_path")
-
-    # Step 1: Extract Text
-    pages = await extract_text_from_pdf(file_path)
-    ingest_store.add_document(doc_id, metadata)
-    
-    # Step 2: Generate Golden Chunks (First 5 pages for brevity in MVP)
-    processed_chunks = []
-    for page in pages[:5]:
-        chunk = await generate_golden_chunk(page["content"], metadata, page["page_number"])
-        ingest_store.add_chunk(doc_id, chunk)
-        processed_chunks.append(chunk.model_dump())
-        
-    return {
-        "success": True,
-        "doc_id": doc_id,
-        "total_pages": len(pages),
-        "chunks_processed": len(processed_chunks),
-        "chunks": processed_chunks
-    }
-
-@app.get("/api/ingest/chunks/{doc_id}")
-async def get_chunks(doc_id: str):
-    """Retrieve processed chunks for a document."""
-    chunks = ingest_store.get_document_chunks(doc_id)
-    return {"success": True, "chunks": [c.model_dump() for c in chunks]}
-
-# ────────────────────────────────────────────────────────────────────────
 # STATIC FILES — serve the frontend
 # ────────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 async def serve_index():
     return FileResponse("static/index.html")
-
 
 # Mount static files AFTER specific routes
 app.mount("/static", StaticFiles(directory="static"), name="static")

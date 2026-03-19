@@ -13,7 +13,6 @@ import uuid
 import httpx
 from typing import Any
 from models import (
-    EntityType, RelationType,
     ExtractionPayload, EntityCandidate, RelationCandidate,
     EvidenceRef, ZONE1_ONTOLOGY_VERSION,
 )
@@ -93,6 +92,7 @@ def get_dynamic_prompt() -> str:
 7. QUANT LAYER: Identify numeric financial metrics (Revenue, PAT, Margins, Growth) and return them in the "quant_data" list.
 8. AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the "discoveries" list with a suggested label.
 9. TEMPORAL NORMALIZATION: For the "period" field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats (e.g., "2024-Q1", "2023-FY"). Do not use descriptive text like "for the first quarter".
+10. NO BYPASS (CRITICAL): NEVER create a direct relation from a sub-node (e.g., PERSON, ROLE, SITE) to the ROOT LegalEntity if a hierarchical path exists. ALWAYS connect them through their immediate parent (e.g., Person -> Role -> Management -> Company). Direct shortcuts are FORBIDDEN.
 
 ### 4. OUTPUT FORMAT (Strict JSON)
 {{
@@ -303,32 +303,12 @@ def _mock_extraction_response(text: str, document_id: str, document_name: str, s
     company_ids = [entity_id_map[c] for c in companies if c in entity_id_map]
     primary_company_id = company_ids[0] if company_ids else None
 
-    # Extract roles and leadership (e.g., "CEO John Donahoe", "John Donahoe is CEO", "Sarah Smith serves as COO")
+    # Extract roles and leadership
     role_titles = ["CEO", "COO", "CTO", "CFO", "President", "VP", "Manager"]
-
-    # Pattern 1: "CEO John Donahoe" (role before name)
     role_before_pattern = re.compile(rf"\b({'|'.join(role_titles)})\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)")
-    # Pattern 2: "John Donahoe is CEO" or "John Donahoe is the CEO"
     role_after_pattern1 = re.compile(rf"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:is|serves as)\s+(?:the\s+)?({'|'.join(role_titles)})\b")
-    # Pattern 3: Just capturing roles in context "was the CEO of Company"
     role_after_pattern2 = re.compile(rf"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:is|are|was|were|serves as|served as)\s+(?:the\s+)?(?:current\s+)?({'|'.join(role_titles)})\b")
 
-
-    seen_roles = set()
-    for pattern in (role_before_pattern, role_after_pattern1, role_after_pattern2):
-        for match in re.findall(pattern, text):
-            # Unpack depending on which pattern matched
-            if len(match) == 2 and match[0] in role_titles:
-                role_title, person_name = match
-            else:
-                person_name, role_title = match
-
-            person_name = person_name.strip()
-            role_title = role_title.strip()
-            role_key = (person_name, role_title)
-            if role_key in seen_roles:
-                continue
-            seen_roles.add(role_key)
 
     # Create Management node for the primary company
     management_id = None
@@ -477,26 +457,8 @@ def _mock_extraction_response(text: str, document_id: str, document_name: str, s
                     })
             break  # Avoid duplicate processing
     
-    # Create OPERATES_IN relations for geographies (only for parent regions, not individual countries)
-    company_ids = [entity_id_map[c] for c in companies if c in entity_id_map]
-    if company_ids:
-        primary_company_id = company_ids[0]
-        # Only link to parent geographies (regions) for OPERATES_IN
-        region_geos = ["Southeast Asia", "Europe", "Asia", "North America", "South America"]
-        for geo in region_geos:
-            if geo in entity_id_map:
-                relations.append({
-                    "source_temp_id": primary_company_id,
-                    "target_temp_id": entity_id_map[geo],
-                    "relation_type": "OPERATES_IN",
-                    "evidence": [{
-                        "document_id": document_id,
-                        "document_name": document_name,
-                        "section_ref": section_ref,
-                        "evidence_quote": geo
-                    }],
-                    "confidence": 0.8
-                })
+    # Redundant region relations removed to follow NO REDUNDANCY rule.
+    # Geography hierarchy is now handled via Country -> PART_OF -> Region.
     
     # Extract Sectors
     sectors = ["Financial Services", "Technology", "Healthcare", "Consumer Goods", "Energy"]
@@ -574,7 +536,6 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
         finish_reason = result["choices"][0].get("finish_reason", "stop")
     except Exception as e:
         print(f"[WARN] LLM API failed: {e}. Using mock extraction for demo...")
-        # Mock extraction for demo/testing
         content = _mock_extraction_response(text, document_id, document_name, section_ref)
     
     # Strip fences
@@ -583,45 +544,41 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    # Parse JSON — attempt repair if truncated
+    # Parse JSON
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError:
-        if finish_reason == "mock":
-            raise ValueError("Mock extraction generated invalid JSON")
-        print(f"[WARN] JSON parse failed (finish_reason={finish_reason}), attempting repair...")
         parsed = _repair_truncated_json(content)
 
-    # Parse entities (skip any that fail validation)
+    # Load dynamic ontology for validation
+    ontology = db.get_ontology()
+    valid_entity_types = set(ontology.get("entity_types", []))
+    valid_relation_types = set(ontology.get("relation_types", []))
+
+    # Parse entities
     entities = []
     skipped_entities = []
     for e in parsed.get("entities", []):
         try:
-            entities.append(EntityCandidate(**e))
+            ent_cand = EntityCandidate(**e)
+            if ent_cand.entity_type not in valid_entity_types:
+                # We allow it but mark as discovery if not in valid types
+                pass
+            entities.append(ent_cand)
         except Exception as exc:
             skipped_entities.append(f"Entity '{e.get('canonical_name', '?')}': {exc}")
 
-    # Parse relations (skip any with unknown relation types)
-    valid_relation_types = {rt.value for rt in RelationType}
+    # Parse relations
     relations = []
     skipped_relations = []
     for r in parsed.get("relations", []):
-        rel_type = r.get("relation_type", "")
-        if rel_type not in valid_relation_types:
-            skipped_relations.append(
-                f"Relation '{r.get('source_temp_id','?')}' --{rel_type}--> "
-                f"'{r.get('target_temp_id','?')}': unknown type '{rel_type}'"
-            )
-            continue
         try:
-            relations.append(RelationCandidate(**r))
+            rel_cand = RelationCandidate(**r)
+            relations.append(rel_cand)
         except Exception as exc:
-            skipped_relations.append(
-                f"Relation '{r.get('source_temp_id','?')}' --{rel_type}--> "
-                f"'{r.get('target_temp_id','?')}': {exc}"
-            )
+            skipped_relations.append(f"Relation: {exc}")
 
-    # Collect abstentions including skipped items
+    # Collect abstentions
     abstentions = parsed.get("abstentions", [])
     abstentions.extend(skipped_entities)
     abstentions.extend(skipped_relations)
