@@ -197,8 +197,22 @@ class DatabaseManager:
                 if row:
                     current_data = json.loads(row['data'])
                     if isinstance(current_data, list) and isinstance(data, list):
-                        # Merge lists, unique entries only
-                        final_data = list(set(current_data + data))
+                        # Merge lists, unique entries only (handle non-hashable dicts)
+                        if any(isinstance(x, dict) for x in current_data + data):
+                            # Specialized merge for lists of dicts (like allowed_triples)
+                            combined = current_data + data
+                            seen = set()
+                            unique_list = []
+                            for item in combined:
+                                # Serialize to unique string for hashing
+                                s = json.dumps(item, sort_keys=True)
+                                if s not in seen:
+                                    seen.add(s)
+                                    unique_list.append(item)
+                            final_data = unique_list
+                        else:
+                            # Standard set merge for hashable items (strings)
+                            final_data = list(set(current_data + data))
                     elif isinstance(current_data, dict) and isinstance(data, dict):
                         # Merge dicts
                         final_data = {**current_data, **data}
