@@ -116,9 +116,14 @@ function renderLegend(colors = ENTITY_TYPE_COLORS) {
 // ── Fetch Rules ───────────────────────────────────────────────────
 async function fetchOntology() {
     try {
-        const res = await fetch("/api/ontology");
-        if (!res.ok) return;
-        const data = await res.json();
+        const res = await fetch("/api/ontology?v=5");
+        if (!res.ok) {
+            console.warn("Ontology fetch failed, using defaults");
+            return;
+        }
+        const text = await res.text();
+        if (!text) return;
+        const data = JSON.parse(text);
         if (data && data.entity_colors) {
             // Update the global color map
             Object.assign(ENTITY_TYPE_COLORS, data.entity_colors);
@@ -132,8 +137,11 @@ async function fetchOntology() {
 // ── Fetch Initial Data ────────────────────────────────────────────────
 async function fetchGraph() {
     try {
-        const res = await fetch("/api/graph");
-        const data = await res.json();
+        const res = await fetch("/api/graph?v=5");
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        const text = await res.text();
+        if (!text) throw new Error("Empty response from server");
+        const data = JSON.parse(text);
         if (data && data.nodes) {
             graph.update(data);
             document.getElementById("entity-count").textContent = data.stats.total_entities;
