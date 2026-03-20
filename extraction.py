@@ -18,6 +18,7 @@ from models import (
 )
 
 def _get_llm_config():
+    """LLM CONFIG: Loads credentials and model settings from .env."""
     from dotenv import load_dotenv
     load_dotenv(override=True)
     return {
@@ -501,6 +502,10 @@ def _mock_extraction_response(text: str, document_id: str, document_name: str, s
 
 
 async def call_llm(text: str, document_name: str = "User Input", section_ref: str = "chunk", metadata: dict = {}) -> ExtractionPayload:
+    """
+    INGESTION CORE: Constructs the intent-capture prompt, calls the LLM,
+    repairs the JSON response, and validates it against the ExtractionPayload schema.
+    """
     cfg = _get_llm_config()
     document_id = f"doc_{uuid.uuid4().hex[:8]}"
     

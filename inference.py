@@ -8,6 +8,9 @@ class GraphInference:
     """
     Automated Logic Inference Engine for Knowledge Graphs.
     Derives hidden relationships based on transitive paths.
+
+    REASONING LAYER: Handles logical graph expansion and implicit relationship discovery.
+    For example, it automatically infers 'CO_COMPETITORS' between two entities competing with the same target.
     """
     
     def __init__(self, nodes: List[Dict], links: List[Dict]):

@@ -68,8 +68,9 @@ from inference import GraphInference
 
 class GraphStore:
     """
-    Persistent graph store for Zone 1 entities and relations using Neon Postgres.
-    Integrates LogicGuard for validation and supports Trust/Quant/Discovery layers.
+    KNOWLEDGE MANAGER: The main orchestrator of the system.
+    It takes raw LLM payloads, validates them against the ontology (LogicGuard),
+    handles entity resolution (deduplication), and persists everything to Neon.
     """
 
     def __init__(self):
@@ -189,9 +190,14 @@ class GraphStore:
         return make_entity_id(entity.entity_type, entity.canonical_name)
 
     def _process_discoveries(self, discoveries):
+        """
+        LEARNING PROCESSOR: Integrates new types/relations found by the LLM
+        into the persistent ontology rules.
+        """
         cur_ont = self.db.get_ontology()
         entities = set(cur_ont.get('entity_types', []))
         relations = set(cur_ont.get('relation_types', []))
+        colors = cur_ont.get('entity_colors', {})
         triples = cur_ont.get('allowed_triples', [])
         
         updated = False
@@ -199,6 +205,9 @@ class GraphStore:
             is_new = False
             if d.type == 'ENTITY' and d.suggested_label not in entities:
                 entities.add(d.suggested_label)
+                # Assign default color if missing
+                if d.suggested_label not in colors:
+                    colors[d.suggested_label] = "#3b82f6" 
                 is_new = True
             elif d.type == 'RELATION' and d.suggested_label not in relations:
                 relations.add(d.suggested_label)
@@ -215,6 +224,7 @@ class GraphStore:
         if updated:
             self.db.update_ontology('entity_types', list(entities))
             self.db.update_ontology('relation_types', list(relations))
+            self.db.update_ontology('entity_colors', colors)
             self.db.update_ontology('allowed_triples', triples)
             self.ontology = self.db.get_ontology()
             self.guard = LogicGuard(self.ontology)

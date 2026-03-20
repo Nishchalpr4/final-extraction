@@ -40,8 +40,9 @@ let chunkCount = 0;
 document.addEventListener("DOMContentLoaded", () => {
     graph = new GraphVisualization("#graph-svg", "#node-tooltip");
 
-    // Render legend
+    // Render initial legend (static) then fetch dynamic rules
     renderLegend();
+    fetchOntology();
 
     // Check health
     checkHealth();
@@ -94,10 +95,15 @@ function initSharing() {
 }
 
 // ── Legend ──────────────────────────────────────────────────────────
-function renderLegend() {
+function renderLegend(colors = ENTITY_TYPE_COLORS) {
     const legendEl = document.getElementById("graph-legend");
     let html = "";
-    for (const [type, color] of Object.entries(ENTITY_TYPE_COLORS)) {
+    
+    // Sort types alphabetically for better UX
+    const sortedTypes = Object.keys(colors).sort();
+    
+    for (const type of sortedTypes) {
+        const color = colors[type];
         const label = type.replace(/([A-Z])/g, " $1").trim();
         html += `<div class="legend-item">
             <div class="legend-dot" style="background:${color}"></div>
@@ -105,6 +111,22 @@ function renderLegend() {
         </div>`;
     }
     legendEl.innerHTML = html;
+}
+
+// ── Fetch Rules ───────────────────────────────────────────────────
+async function fetchOntology() {
+    try {
+        const res = await fetch("/api/ontology");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.entity_colors) {
+            // Update the global color map
+            Object.assign(ENTITY_TYPE_COLORS, data.entity_colors);
+            renderLegend(ENTITY_TYPE_COLORS);
+        }
+    } catch (e) {
+        console.error("Failed to fetch ontology:", e);
+    }
 }
 
 // ── Fetch Initial Data ────────────────────────────────────────────────
@@ -188,6 +210,9 @@ async function handleExtract() {
 
         const data = await res.json();
         graph.update(data.graph);
+        
+        // Refresh ontology (in case new types were discovered)
+        fetchOntology();
 
         const detailPanel = document.getElementById("detail-panel");
         if (detailPanel) detailPanel.style.display = "none";

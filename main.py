@@ -38,10 +38,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Global graph store (persistent)
+# ── GLOBAL STATE ──
+# The 'store' is the brain of the app, coordinating database and LLM-driven ingestion.
 store = GraphStore()
 
-# Seed the database on startup within the server process (avoids locks)
+# ── STARTUP SEQUENCE ──
+# Ensures the ontology is alive and the LogicGuard is ready to validate incoming extractions.
 @app.on_event("startup")
 def startup_seed():
     print("SERVER STARTUP: Checking ontology updates...")
@@ -80,10 +82,8 @@ class ExtractRequest(BaseModel):
     metadata: dict = {}
 
 
-# ────────────────────────────────────────────────────────────────────────
-# API ROUTES
-# ────────────────────────────────────────────────────────────────────────
-
+# ── EXTRACTION & INGESTION ──
+# This is the primary endpoint that accepts raw text and turns it into graph nodes.
 @app.post("/api/extract")
 async def extract_entities(req: ExtractRequest):
     """
@@ -163,6 +163,11 @@ async def health():
         "llm_model": os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
         "llm_base_url": os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
     }
+
+@app.get("/api/ontology")
+async def get_ontology():
+    """Returns the current ontology rules (entity types, relations, colors)."""
+    return store.db.get_ontology()
 
 
 # ────────────────────────────────────────────────────────────────────────

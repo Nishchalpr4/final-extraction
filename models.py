@@ -4,6 +4,11 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+"""
+CONTRACT LAYER: Defines the strict Pydantic schemas for LLM extraction and graph storage.
+Ensures that every piece of data (Entities, Relations, Discoveries) follows a predictable structure.
+"""
+
 # ════════════════════════════════════════════════════════════════════════
 # REVIEW STATE
 # ════════════════════════════════════════════════════════════════════════

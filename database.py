@@ -13,14 +13,22 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.errors
 
+# Import RealDictCursor for convenience
+from psycopg2.extras import RealDictCursor
+
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
+    """
+    CENTRAL KNOWLEDGE ENGINE: Manages all interactions with Neon Postgres.
+    It handles schema creation, persistent ontology storage, and graph data access.
+    """
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
         
         if not self.db_url:
-            raise ValueError("DATABASE_URL environment variable is missing. Neon Postgres is required.")
+            logger.error("DATABASE_URL not found. Database operations will fail.")
+            raise ValueError("DATABASE_URL environment variable is required.")
         
         if not self.db_url.startswith("postgres"):
             raise ValueError("DATABASE_URL must be a valid PostgreSQL connection string starting with 'postgres://'.")
@@ -28,7 +36,7 @@ class DatabaseManager:
         self._init_db()
 
     def _get_connection(self):
-        """Returns a new psycopg2 connection to Neon Postgres."""
+        """Creates a fresh connection to the Neon Postgres instance."""
         return psycopg2.connect(self.db_url)
 
     def _get_cursor(self, conn):
@@ -143,7 +151,10 @@ class DatabaseManager:
             conn.close()
 
     def clear_graph_data(self):
-        """Clears actual graph data (nodes, links, evidence) but PRESERVES knowledge (ontology, discoveries)."""
+        """
+        SURGICAL RESET: Wipes the 'drawn' graph (nodes/links) while 
+        keeping the AI's 'knowledge' (ontology/discoveries) intact.
+        """
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -157,7 +168,10 @@ class DatabaseManager:
             conn.close()
 
     def danger_full_wipe(self):
-        """Wipes EVERY table including learned knowledge (DANGER)."""
+        """
+        NUCLEAR RESET: Wipes EVERYTHING, including learned types and rules.
+        Use only for catastrophic recovery or total project resets.
+        """
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -174,7 +188,7 @@ class DatabaseManager:
             conn.close()
 
     def get_ontology(self):
-        """Fetches the current ontology rules from Neon."""
+        """FETCH RULES: Returns the current AI configuration (types/colors/logic)."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
@@ -185,7 +199,10 @@ class DatabaseManager:
             conn.close()
 
     def update_ontology(self, key: str, data: list | dict, merge: bool = False):
-        """Upserts ontology rules into Neon. If merge=True, appends to existing list."""
+        """
+        LEARNING ENGINE: Persists new entity/relation types. 
+        If merge=True, it intelligently deduplicates and combines with existing knowledge.
+        """
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
@@ -310,7 +327,10 @@ class DatabaseManager:
             conn.close()
 
     def get_graph_data(self):
-        """Fetches all nodes and links for the UI visualization."""
+        """
+        VIZ BRIDGE: Aggregates master entities, relations, recent evidence, 
+        and consensus metrics into a single D3-ready JSON structure.
+        """
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
