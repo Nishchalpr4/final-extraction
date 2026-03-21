@@ -85,8 +85,11 @@ def get_dynamic_prompt() -> str:
         "AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the 'discoveries' list.",
         "TEMPORAL NORMALIZATION: For the 'period' field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats.",
         "REFERENTIAL INTEGRITY: Every single 'source_temp_id' and 'target_temp_id' used in relations MUST MATCH a 'temp_id' defined in the 'entities' list.",
+        "GEOPOLITICAL NESTING (MANDATORY): If a Region (e.g. Southeast Asia) and its constituent Countries (e.g. Vietnam, Cambodia) are both present, the Countries MUST be connected to the Region via 'PART_OF'. NEVER link a constituent Country directly to the Company if the Region is present.",
+        "MARKET HIERARCHY (STRICT): Geographies or factors described as driving a market (e.g. 'China drives the footwear market') MUST connect to the 'Market' node via 'DRIVEN_BY', NOT directly to the Company.",
+        "ANALYST ROUTING: Analyst firms (e.g. Goldman Sachs) MUST connect to the Market or Entity they analyze via 'ANALYST_OF'.",
         "PRODUCT HIERARCHY: Group products under ProductPortfolio nodes when clear in the text.",
-        "CONNECTIVITY: Prioritize connecting all extracted entities into a single unified graph. Avoid orphan nodes."
+        "CONNECTIVITY: Every node MUST connect to the ROOT directly or indirectly. No floating nodes."
     ]
     
     rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
