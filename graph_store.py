@@ -103,6 +103,9 @@ class GraphStore:
 
     def ingest_extraction(self, payload: ExtractionPayload, source_authority: int = 5):
         """Main entry point for processing LLM extraction results."""
+        # 0. STRICT FILTERING: Scrub any relations that violate the ontology
+        self.guard.filter_payload(payload)
+        
         id_map = {} # temp_id -> canonical_id
         
         for entity in payload.entities:

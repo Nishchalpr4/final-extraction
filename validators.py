@@ -65,6 +65,29 @@ class LogicGuard:
                 
         return flags
 
+    def filter_payload(self, payload: ExtractionPayload):
+        """Strictly suppresses any entities or relations that violate the ontology."""
+        # 1. Relation Filter
+        entity_map = {e.temp_id: e.entity_type for e in payload.entities}
+        valid_relations = []
+        for rel in payload.relations:
+            src_type = entity_map.get(rel.source_temp_id)
+            tgt_type = entity_map.get(rel.target_temp_id)
+            
+            if src_type and tgt_type:
+                triple = (src_type, rel.relation_type, tgt_type)
+                if triple in self.allowed_triples:
+                    valid_relations.append(rel)
+                else:
+                    print(f"[DEBUG] BLOCKED TRIPLE: {triple}")
+                    logger.warning(f"BLOCKED: Illegal relation {rel.relation_type} between {src_type} and {tgt_type}")
+            else:
+                print(f"[DEBUG] BLOCKED MISSING TYPES: {rel.relation_type} ({rel.source_temp_id} -> {rel.target_temp_id})")
+                logger.warning(f"BLOCKED: Missing source/target types for {rel.relation_type}")
+        
+        payload.relations = valid_relations
+        return payload
+
     def _check_quant(self, quant_data) -> List[str]:
         flags = []
         for q in quant_data:

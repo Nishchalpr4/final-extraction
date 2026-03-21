@@ -247,11 +247,6 @@
             "target": "Management"
         },
         {
-            "source": "LegalEntity",
-            "relation": "HAS_EMPLOYEE",
-            "target": "Person"
-        },
-        {
             "source": "Brand",
             "relation": "PART_OF",
             "target": "ProductLine"
@@ -285,11 +280,6 @@
             "source": "LegalEntity",
             "relation": "HAS_INITIATIVE",
             "target": "Initiative"
-        },
-        {
-            "source": "Initiative",
-            "relation": "LEADS",
-            "target": "Person"
         },
         {
             "source": "Initiative",
@@ -367,6 +357,16 @@
             "target": "Market"
         },
         {
+            "source": "LegalEntity",
+            "relation": "ANALYST_OF",
+            "target": "Market"
+        },
+        {
+            "source": "LegalEntity",
+            "relation": "REPORTS_ON",
+            "target": "Market"
+        },
+        {
             "source": "Market",
             "relation": "DRIVEN_BY",
             "target": "Geography"
@@ -413,7 +413,7 @@
         "7. MARKET ANCHORING: Every 'Market' node MUST connect back to the ROOT Subject Company via 'OPERATES_IN_MARKET' or 'PART_OF'. NEVER leave Market nodes floating.",
         "8. SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
         "9. GEOGRAPHY: Region -> Country -> Site hierarchy. Anchor the Company to the Region.",
-        "10. ANALYSTS & PARTNERS: External firms (Goldman Sachs) MUST connect to the Subject Company via ANALYST_OF (Firm -> Subject).",
+        "10. ANALYSTS & PARTNERS: External firms (Goldman Sachs) MUST connect to the Subject Company OR Market via ANALYST_OF or REPORTS_ON.",
         "11. NO ISLANDS: Every node MUST have at least one incoming or outgoing edge that eventually leads to the ROOT. If missing, create 'Strategic Context' or 'Market Context' nodes.",
         "12. QUANT DATA: All financial metrics belong in the quant_data list of an entity, NOT as separate nodes."
     ]

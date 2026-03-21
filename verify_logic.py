@@ -5,6 +5,19 @@ async def verify():
     text = """In January 2024, Nike Inc. announced that it would expand its manufacturing partnerships in Southeast Asia to diversify its supply chain. The initiative is being led by Nike CEO John Donahoe and COO Andy Campion as part of the company's long-term strategy to reduce reliance on single-country sourcing. Nike currently works with contract manufacturers in Vietnam, Indonesia, and Cambodia. According to a report published by Morgan Stanley in February 2024, nearly 50% of Nike’s footwear production now comes from Vietnam-based factories. Nike’s flagship product lines include the Air Jordan sneakers, Nike Air Max running shoes, and the Pegasus performance running series. The Air Jordan brand, originally developed in partnership with basketball player Michael Jordan in 1984, remains one of Nike's most profitable franchises. In the fiscal year ending May 31, 2023, Nike reported revenue of $51.2 billion, with North America accounting for approximately 42% of total sales. The company competes with global sportswear brands including Adidas AG, Puma SE, and Under Armour Inc. Analysts at Goldman Sachs estimate that the global athletic footwear market will reach $160 billion by 2027, driven by demand in China, India, and Brazil."""
     res = await call_llm(text, "test")
     
+    # Run LogicGuard filter (Simulate production ingestion)
+    from database import DatabaseManager
+    from validators import LogicGuard
+    db_mgr = DatabaseManager()
+    ont = db_mgr.get_ontology()
+    guard = LogicGuard(ont)
+    
+    print(f"[DEBUG] Allowed Triples in Guard: {len(guard.allowed_triples)}")
+    if ("Management", "HAS_ROLE", "Person") in guard.allowed_triples:
+        print("[DEBUG] WARNING: Management -> HAS_ROLE -> Person is IN the allowed set!")
+    
+    guard.filter_payload(res)
+    
     missing_context = [e.canonical_name for e in res.entities if "context" not in (e.attributes or {}) and "description" not in (e.attributes or {})]
     
     has_management = any(e.entity_type == "Management" for e in res.entities)
