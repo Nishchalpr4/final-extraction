@@ -61,11 +61,10 @@ document.addEventListener("DOMContentLoaded", () => {
     showPromptBtn.addEventListener("click", async () => {
         promptOverlay.style.display = "flex";
         
-        // Sync source text preview
-        const sourceText = document.getElementById("text-input").value.trim();
+        const text = document.getElementById("text-input").value.trim();
         const sourcePreview = document.getElementById("prompt-source-preview");
         if (sourcePreview) {
-            sourcePreview.textContent = sourceText || "No text provided.";
+            sourcePreview.textContent = text || "No text provided.";
         }
 
         promptEditor.value = "Fetching current system prompt...";
