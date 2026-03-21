@@ -21,13 +21,14 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load .env before other imports that read env vars
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from graph_store import GraphStore
 from extraction import call_llm
+from validators import LogicGuard # Moved to top-level
 
 # ────────────────────────────────────────────────────────────────────────
 # APP SETUP
@@ -47,16 +48,18 @@ store = GraphStore()
 # Ensures the ontology is alive and the LogicGuard is ready to validate incoming extractions.
 @app.on_event("startup")
 def startup_seed():
-    print("SERVER STARTUP: Checking ontology updates...")
+    print(f"SERVER STARTUP: PID {os.getpid()} starting...")
     try:
         # Initial seed if empty
         store.db.seed_ontology()
         store.ontology = store.db.get_ontology()
-        from validators import LogicGuard
+        
+        # Guard is built from the ontology
         store.guard = LogicGuard(store.ontology)
-        print("SERVER STARTUP: Ontology updated successfully.")
+        print("SERVER STARTUP: Ontology and LogicGuard updated successfully.")
     except Exception as e:
         print(f"SERVER STARTUP ERROR: {e}")
+        traceback.print_exc()
 
 @app.post("/api/admin/reseed")
 async def reseed_ontology():
@@ -186,10 +189,6 @@ async def get_ontology():
 @app.get("/")
 async def serve_index():
     return FileResponse("static/index.html")
-
-from fastapi import Request
-from fastapi.responses import JSONResponse
-import traceback
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
