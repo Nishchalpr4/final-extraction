@@ -71,8 +71,12 @@
         {"source": "Program", "relation": "PART_OF", "target": "Initiative"},
         {"source": "LegalEntity", "relation": "WORKS_WITH", "target": "LegalEntity"},
         {"source": "Person", "relation": "SUCCEEDS", "target": "Person"},
+        {"source": "Person", "relation": "PARTNERS_WITH", "target": "LegalEntity"},
+        {"source": "Person", "relation": "ASSOCIATED_WITH", "target": "Brand"},
+        {"source": "Person", "relation": "ASSOCIATED_WITH", "target": "ProductLine"},
         {"source": "LegalEntity", "relation": "OPERATES_IN", "target": "Geography"},
         {"source": "LegalEntity", "relation": "LOCATED_IN", "target": "Geography"},
+
         {"source": "LegalEntity", "relation": "ANALYST_OF", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "REPORTS_ON", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "ANALYZES", "target": "Market"},
