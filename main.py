@@ -65,7 +65,8 @@ def startup_seed():
 async def reseed_ontology():
     """Administrative endpoint to force refresh the ontology without restarting."""
     try:
-        store.db.seed_ontology()
+        # Force a clean overwrite (merge=False) to clear stale legacy labels
+        store.db.seed_ontology(merge_with_existing=False)
         store.ontology = store.db.get_ontology()
         from validators import LogicGuard
         store.guard = LogicGuard(store.ontology)
