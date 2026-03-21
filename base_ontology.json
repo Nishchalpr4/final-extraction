@@ -201,12 +201,13 @@
     },
     "extraction_rules": [
         "1. ROOT ENTITY: Identify the primary company (e.g., Nike) as LegalEntity.",
-        "2. GEOPOLITICAL NESTING (MANDATORY): If a Region (e.g., Southeast Asia) and its constituent Geographies (e.g., Vietnam, Cambodia) are both mentioned, the Geographies MUST connect to the Region via PART_OF. NEVER link a constituent Country directly to the Company if the Region is present.",
-        "3. MARKET DRIVERS (MANDATORY): Geographies or factors described as driving a Market (e.g., 'Demand in China drives the market') MUST connect to the Market entity via DRIVEN_BY, NOT directly to the Company.",
-        "4. CONNECTIVITY: Every node MUST connect to the ROOT directly or indirectly. No floating nodes.",
-        "5. HIERARCHY: Group leaders/persons under the primary Company or Management node.",
-        "6. ANALYSTS: External analyst firms (e.g., Goldman Sachs) MUST connect to the Market or LegalEntity they analyze via ANALYST_OF.",
-        "7. PRODUCT HIERARCHY: Group products under a ProductPortfolio node if clear.",
-        "8. QUANT DATA: Return numeric metrics in the quant_data list of an entity."
+        "2. GEOPOLITICAL NESTING (STRICT NO-SHORTCUT): Countries mentioned alongside their Region (e.g., Vietnam in Southeast Asia) MUST ONLY connect to the Region via PART_OF. Direct links to the Root Company are FORBIDDEN.",
+        "3. MARKET ANCHORING (STRICT): Geographies described as driving a market MUST connect to the Market entity via DRIVEN_BY, NOT to the Company.",
+        "4. ANALYST ROUTING: Analyst firms MUST connect to the Market or Entity they analyze via ANALYST_OF.",
+        "5. MANAGEMENT CHAIN (STRICT): Corporate leaders (CEO, COO, etc.) MUST be anchored to the Management node of the Company via Role entities. Required path: LegalEntity -> Management -> Role -> Person.",
+        "6. HIERARCHICAL INTEGRITY: Prefer 100% path connectivity (Root -> Parent -> Child) over flat lists. Shorter paths are NOT allowed if a hierarchical parent exists.",
+        "7. CONNECTIVITY: Every single node MUST have at least one incoming or outgoing relation to the main graph.",
+        "8. PRODUCT HIERARCHY: Group products under a ProductPortfolio node if clear.",
+        "9. QUANT DATA: Return numeric metrics in the quant_data list of an entity."
     ]
 }

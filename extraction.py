@@ -107,49 +107,46 @@ def get_dynamic_prompt() -> str:
 {rules_str}
 
 ### 4. EXAMPLE OF HIERARCHICAL INTEGRITY (FOLLOW THIS PATTERN)
-Text: "Nike expands in Southeast Asia, with factories in Vietnam and Indonesia. Goldman Sachs says the global footwear market is driven by China."
+Text: "Nike expands in Southeast Asia, with factories in Vietnam. CEO John Donahoe leads the initiative. Goldman Sachs says the global footwear market is driven by China."
 Correct Extraction Logic:
 - [Nike Inc] --OPERATES_IN--> [Southeast Asia]
 - [Vietnam] --PART_OF--> [Southeast Asia] (!!! NO DIRECT LINK TO NIKE !!!)
-- [Indonesia] --PART_OF--> [Southeast Asia] (!!! NO DIRECT LINK TO NIKE !!!)
+- [Nike Inc] --HAS_MANAGEMENT--> [Nike Management]
+- [Nike Management] --HAS_ROLE--> [CEO] --HELD_BY--> [John Donahoe]
 - [Goldman Sachs] --ANALYST_OF--> [Global Footwear Market]
 - [China] --DRIVEN_BY--> [Global Footwear Market] (!!! NO DIRECT LINK TO NIKE/GOLDMAN !!!)
 
 ### 5. OUTPUT FORMAT (Strict JSON)
-{{
+{
     "thought_process": "Analyze the text for hierarchy, trust, and missing types...",
     "entities": [
-        {{
+        {
             "temp_id": "e_root",
             "entity_type": "LegalEntity",
             "canonical_name": "Official Name",
-            "attributes": {{ "context": "Detailed explanation of why this entity matters in this context" }},
+            "attributes": { "context": "Detailed explanation..." },
             "source_text": "...",
             "confidence": 0.95,
-            "evidence": [{{ "evidence_quote": "..." }}]
-        }}
+            "evidence": [{"evidence_quote": "..."}]
+        }
     ],
     "relations": [
-        {{
+        {
             "source_temp_id": "...",
             "target_temp_id": "...",
             "relation_type": "...",
             "source_text": "...",
             "confidence": 0.9,
-            "evidence": [{{ "evidence_quote": "..." }}]
-        }}
+            "evidence": [{"evidence_quote": "..."}]
+        }
     ],
     "quant_data": [
-        {{ "metric": "Revenue", "value": 2500, "unit": "Cr", "period": "2026-Q3", "subject_id": "e_root" }},
-        {{ "metric": "PAT", "value": 15.5, "unit": "Billion", "period": "2024-FY", "subject_id": "e_root" }}
+        { "metric": "Revenue", "value": 2500, "unit": "Cr", "period": "2026-Q3", "subject_id": "e_root" }
     ],
-    "discoveries": [
-        {{ "type": "ENTITY", "name": "...", "suggested_label": "NewEntityType", "context": "..." }},
-        {{ "type": "RELATION", "name": "...", "suggested_label": "NEW_RELATION", "source_type": "TypeA", "target_type": "TypeB", "context": "..." }}
-    ],
-    "analysis_attributes": {{ ... }},
+    "discoveries": [],
+    "analysis_attributes": { ... },
     "llm_analysis_summary": "..."
-}}
+}
 """
 
 def _mock_extraction_response(text: str, document_id: str, document_name: str, section_ref: str) -> str:
