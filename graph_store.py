@@ -2,6 +2,8 @@ import re
 import json
 import logging
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 from models import (
     ExtractionPayload,
     EntityCandidate,
@@ -103,9 +105,6 @@ class GraphStore:
 
     def ingest_extraction(self, payload: ExtractionPayload, source_authority: int = 5):
         """Main entry point for processing LLM extraction results."""
-        # 0. STRICT FILTERING: Scrub any relations that violate the ontology
-        self.guard.filter_payload(payload)
-        
         id_map = {} # temp_id -> canonical_id
         
         for entity in payload.entities:

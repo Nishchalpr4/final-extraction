@@ -81,16 +81,12 @@ def get_dynamic_prompt() -> str:
     # Combine DB rules with strict system rules
     all_rules = cleaned_rules + [
         "TRUST LAYER: For EVERY entity and relation, you MUST provide 'source_text' (verbatim quote) and 'confidence' (0.0 to 1.0).",
+        "QUANT LAYER: Identify numeric financial metrics (Revenue, PAT, Market Size) and return them in the 'quant_data' list.",
         "AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the 'discoveries' list.",
         "TEMPORAL NORMALIZATION: For the 'period' field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats.",
-        "REFERENTIAL INTEGRITY (FATAL ERROR): Every single 'source_temp_id' and 'target_temp_id' used in relations MUST EXACTLY MATCH a 'temp_id' defined in the 'entities' list. NEVER hallucinate or misspell IDs.",
-        "GEOSPATIAL ABSTRACTION: If a text mentions a Region (e.g., Southeast Asia) and its Countries (Vietnam, Cambodia), connect the Company ONLY to the Region. Connect the Countries to the Region using 'PART_OF'. DO NOT connect the Company directly to the Countries.",
-        "HYPOTHETICAL NODES (ZERO TOLERANCE FOR ISLANDS): You MUST create intermediate nodes (like 'Management', 'ProductPortfolio', or 'Market') to ensure EVERY node connects to the ROOT. For example, a Market node MUST connect to the Company via 'OPERATES_IN_MARKET'. NEVER leave a node floating.",
-        "PRODUCT HIERARCHY (STRICT): [Company] -> HAS_PRODUCT_PORTFOLIO -> [ProductPortfolio node] -> HAS_PRODUCT_DOMAIN/FAMILY/LINE -> [Brand/Product node]. NEVER link products directly to the Company. ALWAYS use the Portfolio hierarchy.",
-        "NO BYPASS (FATAL ERROR): NEVER create a direct relation from a Person/Brand/Role to the ROOT if a hierarchical path exists. NO SHORTCUTS. Direct links between PERSON and COMPANY are FORBIDDEN. You MUST go through [Management] -> [Role] -> [Person]. If the text doesn't name a Role, you MUST create a generic one (e.g., 'Executive', 'Senior Management', 'Partner') to satisfy this chain.",
-        "ANALYSTS & PARTNERS: External firms (Goldman Sachs) MUST connect to the Subject Company OR Market via ANALYST_OF or REPORTS_ON.",
-        "NO ISLANDS: Every node MUST have at least one incoming or outgoing edge that eventually leads to the ROOT. If missing, create 'Strategic Context' or 'Market Context' nodes.",
-        "QUANT DATA: All financial metrics belong in the quant_data list of an entity, NOT as separate nodes."
+        "REFERENTIAL INTEGRITY: Every single 'source_temp_id' and 'target_temp_id' used in relations MUST MATCH a 'temp_id' defined in the 'entities' list.",
+        "PRODUCT HIERARCHY: Group products under ProductPortfolio nodes when clear in the text.",
+        "CONNECTIVITY: Prioritize connecting all extracted entities into a single unified graph. Avoid orphan nodes."
     ]
     
     rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
