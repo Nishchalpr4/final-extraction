@@ -1,6 +1,6 @@
 {
     "entity_types": [
-        "LegalEntity", "ExternalOrganization", "BusinessUnit", "Sector", "Industry", 
+        "LegalEntity", "BusinessUnit", "Sector", "Industry", 
         "SubIndustry", "EndMarket", "Channel", "ProductDomain", "ProductFamily", 
         "ProductLine", "Site", "Geography", "Person", "Role", "Technology", 
         "Capability", "Brand", "Initiative", "Financial", "Program", "Management", 
@@ -25,11 +25,8 @@
     "allowed_triples": [
         {"source": "LegalEntity", "relation": "PARENT_OF", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "SUBSIDIARY_OF", "target": "LegalEntity"},
-        {"source": "LegalEntity", "relation": "JV_WITH", "target": "ExternalOrganization"},
         {"source": "LegalEntity", "relation": "JV_WITH", "target": "LegalEntity"},
-        {"source": "LegalEntity", "relation": "PARTNERS_WITH", "target": "ExternalOrganization"},
         {"source": "LegalEntity", "relation": "PARTNERS_WITH", "target": "LegalEntity"},
-        {"source": "LegalEntity", "relation": "COMPETES_WITH", "target": "ExternalOrganization"},
         {"source": "LegalEntity", "relation": "COMPETES_WITH", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "HAS_BUSINESS_UNIT", "target": "BusinessUnit"},
         {"source": "BusinessUnit", "relation": "HAS_BUSINESS_UNIT", "target": "BusinessUnit"},
@@ -57,7 +54,6 @@
         {"source": "BusinessUnit", "relation": "OPERATES_IN", "target": "EndMarket"},
         {"source": "LegalEntity", "relation": "HAS_MANAGEMENT", "target": "Management"},
         {"source": "LegalEntity", "relation": "HAS_COMPETITORS", "target": "Competitors"},
-        {"source": "Competitors", "relation": "HAS_COMPETITOR", "target": "ExternalOrganization"},
         {"source": "Competitors", "relation": "HAS_COMPETITOR", "target": "LegalEntity"},
         {"source": "Management", "relation": "HAS_ROLE", "target": "Role"},
         {"source": "Role", "relation": "HELD_BY", "target": "Person"},
@@ -71,15 +67,13 @@
         {"source": "Initiative", "relation": "LEADS", "target": "Person"},
         {"source": "Initiative", "relation": "OPERATES_IN", "target": "Geography"},
         {"source": "Program", "relation": "PART_OF", "target": "Initiative"},
-        {"source": "LegalEntity", "relation": "WORKS_WITH", "target": "ExternalOrganization"},
-        {"source": "ExternalOrganization", "relation": "REPORTED_BY", "target": "ExternalOrganization"},
+        {"source": "LegalEntity", "relation": "WORKS_WITH", "target": "LegalEntity"},
         {"source": "Person", "relation": "SUCCEEDS", "target": "Person"},
         {"source": "LegalEntity", "relation": "OPERATES_IN", "target": "Geography"},
         {"source": "LegalEntity", "relation": "LOCATED_IN", "target": "Geography"}
     ],
     "entity_colors": {
         "LegalEntity": "#4A90D9",
-        "ExternalOrganization": "#E67E22",
         "BusinessUnit": "#27AE60",
         "Sector": "#8E44AD",
         "Industry": "#2C3E50",
@@ -105,6 +99,7 @@
     },
     "extraction_rules": [
         "ROOT ENTITY: identify the primary company as LegalEntity (ROOT).",
+        "EXTERNAL ORGANIZATIONS: All external companies (partners, JV partners, competitors, etc.) MUST be categorized as LegalEntity. Do not use 'ExternalOrganization'.",
         "NO ORPHANS: Every node MUST connect to ROOT directly or indirectly. If no middle node exists, link directly.",
         "NO REDUNDANCY (CRITICAL): If a node is reachable from the ROOT through a hierarchical chain (e.g., Person -> Role -> Management -> Company), DO NOT create a direct relation from that node to the ROOT. Only link a node to its immediate parent in the chain.",
         "MANAGEMENT CHAIN (STRICT): For leadership roles (CEO, COO, CFO, etc.), you MUST follow this exact hierarchy: [LegalEntity] -> HAS_MANAGEMENT -> [Management node] -> HAS_ROLE -> [Role node] -> HELD_BY -> [Person node]. NEVER link a Person or Role node directly to a LegalEntity.",

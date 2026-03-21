@@ -80,10 +80,10 @@ class ExtractRequest(BaseModel):
     section_ref: str = "chunk"
     source_authority: int = 5
     metadata: dict = {}
+    custom_prompt: str = None # Added for manual prompt editing in UI
 
 
 # ── EXTRACTION & INGESTION ──
-# This is the primary endpoint that accepts raw text and turns it into graph nodes.
 @app.post("/api/extract")
 async def extract_entities(req: ExtractRequest):
     """
@@ -103,7 +103,8 @@ async def extract_entities(req: ExtractRequest):
             text=req.text,
             document_name=req.document_name,
             section_ref=req.section_ref,
-            metadata=req.metadata
+            metadata=req.metadata,
+            custom_prompt=req.custom_prompt # Use custom prompt if provided
         )
 
         # Ingest into graph store
@@ -134,6 +135,13 @@ async def extract_entities(req: ExtractRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+from extraction import get_dynamic_prompt
+
+@app.get("/api/prompt")
+async def get_current_prompt():
+    """Returns the system prompt currently in use."""
+    return {"prompt": get_dynamic_prompt()}
 
 
 @app.get("/api/graph")

@@ -766,7 +766,6 @@ class GraphVisualization {
             "BusinessUnit": 1,
             "Role": 2,                  // Under Management
             "Person": 3,                // Under Role
-            "ExternalOrganization": 3, 
             "Site": 3,
             "ProductDomain": 4, 
             "Technology": 4, 
@@ -792,7 +791,7 @@ class GraphVisualization {
 
     _getNodeRadius(type) {
         if (type === "LegalEntity") return 36;
-        if (["Management", "Competitors", "ExternalOrganization"].includes(type)) return 28;
+        if (["Management", "Competitors"].includes(type)) return 28;
         if (["Person", "Role", "Brand"].includes(type)) return 18;
         return 22;
     }
@@ -800,7 +799,6 @@ class GraphVisualization {
     _getNodeIcon(type) {
         const abbr = {
             "LegalEntity": "ORG",
-            "ExternalOrganization": "EXT",
             "BusinessUnit": "BU",
             "Person": "P",
             "Role": "R",

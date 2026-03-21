@@ -16,7 +16,6 @@ from models import (
 
 _TYPE_PREFIX: dict[str, str] = {
     "LegalEntity":          "le",
-    "ExternalOrganization": "ext",
     "BusinessUnit":         "bu",
     "Sector":               "sec",
     "Industry":             "ind",

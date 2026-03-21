@@ -964,3 +964,159 @@ body {
     border-radius: 4px;
     font-weight: 600;
 }
+
+/* ── Prompt Editor Overlay ─────────────────────────────────────── */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(12px);
+    z-index: 2000;
+    display: none; /* Hidden by default */
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    animation: fadeIn var(--transition-fast);
+}
+
+.prompt-modal {
+    width: 100%;
+    max-width: 1000px;
+    height: 90vh;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-tertiary);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#close-prompt-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 28px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color var(--transition-fast);
+}
+
+#close-prompt-btn:hover {
+    color: var(--accent-red);
+}
+
+.modal-body {
+    flex: 1;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+}
+
+.modal-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(59, 130, 246, 0.05);
+    padding: 10px 14px;
+    border-radius: 6px;
+    border-left: 3px solid var(--accent-blue);
+}
+
+#prompt-editor {
+    flex: 1;
+    width: 100% !important;
+    height: 100% !important;
+    background: #05070a !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 10px !important;
+    color: #4ecdc4 !important; /* accent-teal */
+    font-family: 'Fira Code', 'Fira Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 24px;
+    resize: none;
+    outline: none;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+}
+
+#prompt-editor:focus {
+    border-color: var(--accent-blue) !important;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.5), 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-tertiary);
+}
+
+#reset-prompt-btn {
+    background: transparent !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-secondary) !important;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+}
+
+#reset-prompt-btn:hover {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--text-secondary) !important;
+}
+
+#run-custom-btn {
+    background: linear-gradient(135deg, var(--accent-blue), #1d4ed8) !important;
+    border: none !important;
+    color: white !important;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+
+#run-custom-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+}
+
+#run-custom-btn:active {
+    transform: translateY(0);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

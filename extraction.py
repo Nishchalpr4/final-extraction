@@ -501,7 +501,7 @@ def _mock_extraction_response(text: str, document_id: str, document_name: str, s
     })
 
 
-async def call_llm(text: str, document_name: str = "User Input", section_ref: str = "chunk", metadata: dict = {}) -> ExtractionPayload:
+async def call_llm(text: str, document_name: str = "User Input", section_ref: str = "chunk", metadata: dict = {}, custom_prompt: str = None) -> ExtractionPayload:
     """
     INGESTION CORE: Constructs the intent-capture prompt, calls the LLM,
     repairs the JSON response, and validates it against the ExtractionPayload schema.
@@ -517,10 +517,14 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
         "Content-Type": "application/json",
     }
 
+    # If the user provided a custom prompt in the UI, we use it as the system message.
+    # Otherwise, we use the generated dynamic prompt based on ontology.
+    effective_system_prompt = custom_prompt if custom_prompt else get_dynamic_prompt()
+
     body = {
         "model": cfg["model"],
         "messages": [
-            {"role": "system", "content": get_dynamic_prompt()},
+            {"role": "system", "content": effective_system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         "temperature": 0.1,

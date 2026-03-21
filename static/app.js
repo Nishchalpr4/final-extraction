@@ -7,7 +7,6 @@
 // ── Entity type colors (must match backend models.py/ontology) ──────────────
 const ENTITY_TYPE_COLORS = {
     "LegalEntity":          "#4A90D9",
-    "ExternalOrganization": "#E67E22",
     "BusinessUnit":         "#27AE60",
     "Sector":               "#8E44AD",
     "Industry":             "#2C3E50",
@@ -48,8 +47,50 @@ document.addEventListener("DOMContentLoaded", () => {
     checkHealth();
 
     // Button handlers
-    document.getElementById("btn-extract").addEventListener("click", handleExtract);
+    document.getElementById("btn-extract").addEventListener("click", () => handleExtract());
     document.getElementById("btn-reset").addEventListener("click", handleReset);
+
+    // Prompt Editor Handlers
+    const showPromptBtn = document.getElementById("show-prompt-btn");
+    const closePromptBtn = document.getElementById("close-prompt-btn");
+    const resetPromptBtn = document.getElementById("reset-prompt-btn");
+    const runCustomBtn = document.getElementById("run-custom-btn");
+    const promptOverlay = document.getElementById("prompt-overlay");
+    const promptEditor = document.getElementById("prompt-editor");
+
+    showPromptBtn.addEventListener("click", async () => {
+        promptOverlay.style.display = "flex";
+        promptEditor.value = "Fetching current system prompt...";
+        try {
+            const res = await fetch("/api/prompt");
+            const data = await res.json();
+            promptEditor.value = data.prompt;
+        } catch (e) {
+            promptEditor.value = "Error fetching prompt: " + e.message;
+        }
+    });
+
+    closePromptBtn.addEventListener("click", () => {
+        promptOverlay.style.display = "none";
+    });
+
+    resetPromptBtn.addEventListener("click", async () => {
+        promptEditor.value = "Resetting...";
+        const res = await fetch("/api/prompt");
+        const data = await res.json();
+        promptEditor.value = data.prompt;
+    });
+
+    runCustomBtn.addEventListener("click", () => {
+        const customPrompt = promptEditor.value.trim();
+        promptOverlay.style.display = "none";
+        handleExtract(customPrompt);
+    });
+
+    // Close on click outside
+    promptOverlay.addEventListener("click", (e) => {
+        if (e.target === promptOverlay) promptOverlay.style.display = "none";
+    });
 
     // Ctrl+Enter shortcut
     document.getElementById("text-input").addEventListener("keydown", (e) => {
@@ -172,7 +213,7 @@ async function checkHealth() {
 }
 
 // ── Extract Handler ────────────────────────────────────────────────
-async function handleExtract() {
+async function handleExtract(customPrompt = null) {
     const textInput = document.getElementById("text-input");
     const docName = document.getElementById("doc-name").value.trim() || "User Input";
     const sectionRef = document.getElementById("section-ref").value.trim() || "chunk";
@@ -207,7 +248,8 @@ async function handleExtract() {
                 text: text,
                 document_name: docName,
                 section_ref: sectionRef,
-                metadata: metadata
+                metadata: metadata,
+                custom_prompt: customPrompt // Pass manually edited prompt if exists
             }),
         });
 
