@@ -4,7 +4,7 @@
         "SubIndustry", "EndMarket", "Channel", "ProductDomain", "ProductFamily", 
         "ProductLine", "Site", "Geography", "Person", "Role", "Technology", 
         "Capability", "Brand", "Initiative", "Financial", "Program", "Management", 
-        "Competitors", "ProductPortfolio"
+        "Competitors", "ProductPortfolio", "Market"
     ],
     "relation_types": [
         "HAS_MANAGEMENT", "HAS_COMPETITORS", "HAS_COMPETITOR", "PARENT_OF", 
@@ -20,13 +20,15 @@
         "USES_TECHNOLOGY", "BELONGS_TO_INDUSTRY", "BELONGS_TO_SECTOR", 
         "RUNS_PROGRAM", "PROGRAM_LOCATED_IN", "PROGRAM_FOR_PRODUCT_LINE", 
         "MAPPED_TO", "REPORTED_BY", "HAS_PRODUCT_PORTFOLIO", 
-        "HAS_INITIATIVE", "WORKS_WITH", "SUCCEEDS"
+        "HAS_INITIATIVE", "WORKS_WITH", "SUCCEEDS", "ANALYST_OF", 
+        "REPORTS_ON", "PARTNER_OF", "ANALYZES", "DRIVEN_BY"
     ],
     "allowed_triples": [
         {"source": "LegalEntity", "relation": "PARENT_OF", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "SUBSIDIARY_OF", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "JV_WITH", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "PARTNERS_WITH", "target": "LegalEntity"},
+        {"source": "LegalEntity", "relation": "PARTNER_OF", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "COMPETES_WITH", "target": "LegalEntity"},
         {"source": "LegalEntity", "relation": "HAS_BUSINESS_UNIT", "target": "BusinessUnit"},
         {"source": "BusinessUnit", "relation": "HAS_BUSINESS_UNIT", "target": "BusinessUnit"},
@@ -70,7 +72,12 @@
         {"source": "LegalEntity", "relation": "WORKS_WITH", "target": "LegalEntity"},
         {"source": "Person", "relation": "SUCCEEDS", "target": "Person"},
         {"source": "LegalEntity", "relation": "OPERATES_IN", "target": "Geography"},
-        {"source": "LegalEntity", "relation": "LOCATED_IN", "target": "Geography"}
+        {"source": "LegalEntity", "relation": "LOCATED_IN", "target": "Geography"},
+        {"source": "LegalEntity", "relation": "ANALYST_OF", "target": "LegalEntity"},
+        {"source": "LegalEntity", "relation": "REPORTS_ON", "target": "LegalEntity"},
+        {"source": "LegalEntity", "relation": "ANALYZES", "target": "Market"},
+        {"source": "Market", "relation": "DRIVEN_BY", "target": "Geography"},
+        {"source": "Market", "relation": "DRIVEN_BY", "target": "LegalEntity"}
     ],
     "entity_colors": {
         "LegalEntity": "#4A90D9",
@@ -95,17 +102,20 @@
         "Program": "#607D8B",
         "Management": "#FFD700",
         "Competitors": "#C0392B",
-        "ProductPortfolio": "#3b82f6"
+        "ProductPortfolio": "#3b82f6",
+        "Market": "#9333ea"
     },
     "extraction_rules": [
-        "ROOT ENTITY: identify the primary company as LegalEntity (ROOT).",
-        "EXTERNAL ORGANIZATIONS: All external companies (partners, JV partners, competitors, etc.) MUST be categorized as LegalEntity. Do not use 'ExternalOrganization'.",
-        "NO ORPHANS: Every node MUST connect to ROOT directly or indirectly. If no middle node exists, link directly.",
-        "NO REDUNDANCY (CRITICAL): If a node is reachable from the ROOT through a hierarchical chain (e.g., Person -> Role -> Management -> Company), DO NOT create a direct relation from that node to the ROOT. Only link a node to its immediate parent in the chain.",
-        "MANAGEMENT CHAIN (STRICT): For leadership roles (CEO, COO, CFO, etc.), you MUST follow this exact hierarchy: [LegalEntity] -> HAS_MANAGEMENT -> [Management node] -> HAS_ROLE -> [Role node] -> HELD_BY -> [Person node]. NEVER link a Person or Role node directly to a LegalEntity.",
-        "SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
-        "GEOGRAPHY: Region -> Country -> Site hierarchy.",
-        "QUANT DATA: DO NOT create nodes for Revenue, PAT, Assets, etc. These MUST only be in 'quant_data'.",
-        "BUSINESS UNITS: Key divisions (e.g. Wealth Management) are BusinessUnit nodes."
+        "1. ROOT ENTITY: Identify the primary company (e.g., Nike) as LegalEntity (ROOT).",
+        "2. CONTEXTUAL ATTRIBUTES (CRITICAL): For EVERY entity, you MUST include a 'context' or 'role' attribute. Naming the node is not enough. We must know WHY it exists. Example: for 'Air Jordan', attributes: {'context': 'Flagship brand and profitable franchise since 1984'}.",
+        "3. EXTERNAL ORGANIZATIONS: All external companies (Analyst firms, Banks, Partners, JVs, Competitors) MUST be categorized as LegalEntity. Do not use 'ExternalOrganization'.",
+        "4. NO ORPHANS: Every node MUST connect to ROOT directly or indirectly. If no middle node exists, use WORKS_WITH or ANALYST_OF.",
+        "5. NO REDUNDANCY: If a node is reachable via a chain (e.g., Person -> Role -> Management -> Company), DO NOT create a direct relation to ROOT.",
+        "6. MANAGEMENT CHAIN (STRICT): For leadership roles (CEO, COO, CFO), you MUST follow this hierarchy: [Company] -> HAS_MANAGEMENT -> [Management node] -> HAS_ROLE -> [Role node] -> HELD_BY -> [Person node].",
+        "7. SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
+        "8. GEOGRAPHY: Region -> Country -> Site hierarchy.",
+        "9. ANALYSTS & MARKETS: Firms like Morgan Stanley link to the Subject via 'ANALYST_OF'. Market nodes (e.g. 'Athletic Footwear Market') should be analyzed by these firms.",
+        "10. QUANT DATA: DO NOT create nodes for Revenue, PAT, Assets, etc. These MUST only be in 'quant_data' linked to an entity ID.",
+        "11. BUSINESS UNITS: Key divisions (e.g. Wealth Management) are BusinessUnit nodes."
     ]
 }

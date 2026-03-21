@@ -308,12 +308,25 @@ class GraphVisualization {
         // Entity name main label - MUCH LARGER
         enter.append("text")
             .attr("x", -35)
-            .attr("y", 16)
+            .attr("y", 12) // Moved up slightly
             .attr("fill", "#ffffff")
             .attr("font-size", "14px")
             .attr("font-weight", "700")
             .attr("pointer-events", "none")
             .text(d => this._truncateLabel(d.label, 24));
+
+        // SUBTITLE (Context/Role) - Added for "Why" context
+        enter.append("text")
+            .attr("x", -35)
+            .attr("y", 28)
+            .attr("fill", "#94a3b8")
+            .attr("font-size", "10px")
+            .attr("font-weight", "400")
+            .attr("pointer-events", "none")
+            .text(d => {
+                const ctx = d.attributes?.context || d.attributes?.role || d.attributes?.description || "";
+                return this._truncateLabel(ctx, 32);
+            });
 
         // Interaction
         enter.on("mouseenter", function(event, d) {
@@ -380,7 +393,18 @@ class GraphVisualization {
         enter.append("text")
             .attr("class", "edge-label")
             .attr("text-anchor", "middle")
-            .attr("dy", "0.35em")
+            // Offset logic: move label slightly if multiple edges exist
+            .attr("dy", (d, i) => {
+                const sameNodes = self.links.filter(l => 
+                    (l.source.id === d.source.id && l.target.id === d.target.id) ||
+                    (l.source.id === d.target.id && l.target.id === d.source.id)
+                );
+                if (sameNodes.length > 1) {
+                    const idx = sameNodes.indexOf(d);
+                    return `${0.35 + (idx * 1.2)}em`; // Space them out vertically
+                }
+                return "0.35em";
+            })
             .attr("fill", d => newLinkIds.has(d.id) ? "#fbbf24" : "#94a3b8")
             .attr("font-size", "11px")
             .attr("font-weight", "600")

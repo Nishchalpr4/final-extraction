@@ -75,7 +75,21 @@ def get_dynamic_prompt() -> str:
     relations_str = "\n".join(relations_list)
     
     rules_list = ontology.get('extraction_rules', [])
-    rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(rules_list)])
+    # Strip any leading numbers from the ontology rules to prevent "1. 1." errors
+    cleaned_rules = [re.sub(r'^\d+\.\s*', '', r) for r in rules_list]
+    
+    # Combine DB rules with strict system rules
+    all_rules = cleaned_rules + [
+        "TRUST LAYER: For EVERY entity and relation, you MUST provide 'source_text' (verbatim quote) and 'confidence' (0.0 to 1.0).",
+        "QUANT LAYER: Identify numeric financial metrics (Revenue, PAT, Market Size) and return them in the 'quant_data' list.",
+        "AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the 'discoveries' list.",
+        "TEMPORAL NORMALIZATION: For the 'period' field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats.",
+        "HYPOTHETICAL NODES: You MUST create intermediate nodes (like 'Management' or 'ProductPortfolio' or specific 'Role's) even if not explicitly named in the text, to satisfy the required allowed relations chain.",
+        "PRODUCT HIERARCHY (STRICT): [Company] -> HAS_PRODUCT_PORTFOLIO -> [ProductPortfolio node] -> HAS_PRODUCT_DOMAIN/FAMILY/LINE -> [Brand/Product node]. NEVER link products directly to the Company. ALWAYS use the Portfolio hierarchy.",
+        "NO BYPASS (CRITICAL): NEVER create a direct relation from a sub-node (e.g., PERSON, BRAND, ROLE) to the ROOT if a hierarchical path exists. Direct shortcuts are FORBIDDEN."
+    ]
+    
+    rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
     
     return f"""You are a professional investment intelligence system. Convert unstructured text into a high-trust knowledge graph.
 
@@ -87,13 +101,6 @@ def get_dynamic_prompt() -> str:
 
 ### 3. EXTRACTION RULES
 {rules_str}
-6. TRUST LAYER: For EVERY entity and relation, you MUST provide:
-   - "source_text": The exact verbatim quote from the text that proves it exists.
-   - "confidence": A score from 0.0 to 1.0.
-7. QUANT LAYER: Identify numeric financial metrics (Revenue, PAT, Margins, Growth) and return them in the "quant_data" list.
-8. AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the "discoveries" list with a suggested label.
-9. TEMPORAL NORMALIZATION: For the "period" field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats (e.g., "2024-Q1", "2023-FY"). Do not use descriptive text like "for the first quarter".
-10. NO BYPASS (CRITICAL): NEVER create a direct relation from a sub-node (e.g., PERSON, ROLE, SITE) to the ROOT LegalEntity if a hierarchical path exists. ALWAYS connect them through their immediate parent (e.g., Person -> Role -> Management -> Company). Direct shortcuts are FORBIDDEN.
 
 ### 4. OUTPUT FORMAT (Strict JSON)
 {{
@@ -103,6 +110,7 @@ def get_dynamic_prompt() -> str:
             "temp_id": "e_root",
             "entity_type": "LegalEntity",
             "canonical_name": "Official Name",
+            "attributes": {{ "context": "Detailed explanation of why this entity matters in this context" }},
             "source_text": "...",
             "confidence": 0.95,
             "evidence": [{{ "evidence_quote": "..." }}]
