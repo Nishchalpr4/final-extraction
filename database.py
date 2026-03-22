@@ -34,15 +34,15 @@ class DatabaseManager:
             raise ValueError("DATABASE_URL must be a valid PostgreSQL connection string starting with 'postgres://'.")
 
         # ── CONNECTION POOLING (Critical for Render/Neon Free Tier) ──
-        # SimpleConnectionPool reuses existing connections to avoid hitting limits.
+        # ThreadedConnectionPool is safer for FastAPI's concurrency.
         try:
             from psycopg2 import pool
-            self.pool = pool.SimpleConnectionPool(
+            self.pool = pool.ThreadedConnectionPool(
                 1, 20, # min, max connections
                 dsn=self.db_url,
                 sslmode='require' # Required for Neon
             )
-            logger.info("Neon Postgres Connection Pool initialized (1-20 connections).")
+            logger.info("Neon Postgres Threaded Connection Pool initialized.")
         except Exception as e:
             logger.error(f"Failed to initialize Connection Pool: {e}")
             raise
@@ -50,8 +50,17 @@ class DatabaseManager:
         self._init_db()
 
     def _get_connection(self):
-        """Retrieves a connection from the pool."""
-        return self.pool.getconn()
+        """Retrieves a healthy connection from the pool (implements pre-ping)."""
+        conn = self.pool.getconn()
+        try:
+            # Simple health check (pre-ping)
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            return conn
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            logger.warning(f"Stale connection detected, replacing: {e}")
+            self.pool.putconn(conn, close=True) # Close the dead one
+            return self.pool.getconn() # Get a fresh one
 
     def _get_cursor(self, conn):
         """Standardizes on DictCursor for robust row access."""

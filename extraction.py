@@ -84,13 +84,11 @@ def get_dynamic_prompt() -> str:
         "QUANT LAYER: Identify numeric financial metrics (Revenue, PAT, Market Size) and return them in the 'quant_data' list.",
         "AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the 'discoveries' list.",
         "TEMPORAL NORMALIZATION: For the 'period' field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats.",
-        "REFERENTIAL INTEGRITY: Every single 'source_temp_id' and 'target_temp_id' used in relations MUST MATCH a 'temp_id' defined in the 'entities' list.",
-        "GEOPOLITICAL NESTING (STRICT NO-SHORTCUT): If a Region (e.g. Southeast Asia) and its constituent Countries (e.g. Vietnam) are present, the Countries MUST ONLY connect to the Region via 'PART_OF'. You are FORBIDDEN from connecting the Country directly to the Company if the Region is present.",
-        "MARKET ANCHORING: Geographies described as drivers for a market (e.g. 'China drives the footwear market') MUST connect to the 'Market' node via 'DRIVEN_BY'. DO NOT link them directly to the Parent Company.",
-        "ANALYST ROUTING: Analyst firms MUST connect to the Market or Entity they analyze via 'ANALYST_OF'.",
-        "PRODUCT HIERARCHY: Group products under ProductPortfolio nodes when clear in the text.",
-        "HIERARCHICAL INTEGRITY: Prefer 100%% path connectivity over flat lists. Root -> Parent -> Child is the only allowed pattern for nested entities.",
-        "CONNECTIVITY: Every node MUST connect to the ROOT directly or indirectly. No floating nodes."
+        "REFERENTIAL INTEGRITY (FATAL ERROR): Every single 'source_temp_id' and 'target_temp_id' used in relations MUST EXACTLY MATCH a 'temp_id' defined in the 'entities' list. NEVER hallucinate or misspell IDs.",
+        "GEOSPATIAL ABSTRACTION: If a text mentions a Region (e.g., Southeast Asia) and its Countries (Vietnam, Cambodia), connect the Company ONLY to the Region. Connect the Countries to the Region using 'PART_OF'. DO NOT connect the Company directly to the Countries.",
+        "HYPOTHETICAL NODES (ZERO TOLERANCE FOR ISLANDS): You MUST create intermediate nodes (like 'Management', 'ProductPortfolio', or 'Market') to ensure EVERY node connects to the ROOT. For example, a Market node MUST connect to the Company via 'OPERATES_IN_MARKET'. NEVER leave a node floating.",
+        "PRODUCT HIERARCHY (STRICT): [Company] -> HAS_PRODUCT_PORTFOLIO -> [ProductPortfolio node] -> HAS_PRODUCT_DOMAIN/FAMILY/LINE -> [Brand/Product node]. NEVER link products directly to the Company. ALWAYS use the Portfolio hierarchy.",
+        "NO BYPASS (CRITICAL): NEVER create a direct relation from a sub-node (e.g., PERSON, BRAND, ROLE) to the ROOT if a hierarchical path exists. Direct shortcuts are FORBIDDEN."
     ]
     
     rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
@@ -106,28 +104,15 @@ def get_dynamic_prompt() -> str:
 ### 3. EXTRACTION RULES
 {rules_str}
 
-### 4. EXAMPLE OF HIERARCHICAL INTEGRITY & CONNECTIVITY (FOLLOW THIS PATTERN)
-Text: "Nike expands in Southeast Asia, with factories in Vietnam. CEO John Donahoe leads. Morgan Stanley reports on Nike. Goldman Sachs says the global market is driven by China. Nike competes with Adidas."
-Correct Extraction Logic:
-- [Nike Inc] --OPERATES_IN--> [Southeast Asia]
-- [Vietnam] --PART_OF--> [Southeast Asia] (!!! NO DIRECT LINK TO NIKE !!!)
-- [Nike Inc] --HAS_MANAGEMENT--> [Nike Management]
-- [Nike Management] --HAS_ROLE--> [CEO] --HELD_BY--> [John Donahoe]
-- [Morgan Stanley] --ANALYST_OF--> [Nike Inc] (!!! ANALYST ANCHORING !!!)
-- [Nike Inc] --OPERATES_IN_MARKET--> [Global Footwear Market] (!!! MARKET ANCHORING !!!)
-- [Goldman Sachs] --ANALYST_OF--> [Global Footwear Market]
-- [China] --DRIVEN_BY--> [Global Footwear Market] (!!! NO DIRECT LINK TO NIKE/GOLDMAN !!!)
-- [Nike Inc] --COMPETES_WITH--> [Adidas AG] (!!! COMPETITOR ANCHORING !!!)
-
-### 5. OUTPUT FORMAT (Strict JSON)
+### 4. OUTPUT FORMAT (Strict JSON)
 {{
-    "thought_process": "Analyze the text for hierarchy, connectivity, and ensuring every node has a path to ROOT...",
+    "thought_process": "Analyze the text for hierarchy, trust, and missing types...",
     "entities": [
         {{
             "temp_id": "e_root",
             "entity_type": "LegalEntity",
             "canonical_name": "Official Name",
-            "attributes": {{ "context": "Detailed explanation..." }},
+            "attributes": {{ "context": "Detailed explanation of why this entity matters in this context" }},
             "source_text": "...",
             "confidence": 0.95,
             "evidence": [{{ "evidence_quote": "..." }}]
@@ -144,9 +129,13 @@ Correct Extraction Logic:
         }}
     ],
     "quant_data": [
-        {{ "metric": "Revenue", "value": 2500, "unit": "Cr", "period": "2026-Q3", "subject_id": "e_root" }}
+        {{ "metric": "Revenue", "value": 2500, "unit": "Cr", "period": "2026-Q3", "subject_id": "e_root" }},
+        {{ "metric": "PAT", "value": 15.5, "unit": "Billion", "period": "2024-FY", "subject_id": "e_root" }}
     ],
-    "discoveries": [],
+    "discoveries": [
+        {{ "type": "ENTITY", "name": "...", "suggested_label": "NewEntityType", "context": "..." }},
+        {{ "type": "RELATION", "name": "...", "suggested_label": "NEW_RELATION", "source_type": "TypeA", "target_type": "TypeB", "context": "..." }}
+    ],
     "analysis_attributes": {{ ... }},
     "llm_analysis_summary": "..."
 }}
@@ -556,30 +545,14 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
     if not endpoint.endswith("/chat/completions"):
         endpoint = endpoint.rstrip("/") + "/chat/completions"
     
-    import asyncio
-    max_retries = 2 # Reduced to 2 to stay under Render's 30s timeout
-    retry_delay = 1 # Shorter initial delay
     finish_reason = "mock"
-    content = ""
-
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            for attempt in range(max_retries):
-                response = await client.post(endpoint, headers=headers, json=body)
-                
-                if response.status_code == 429:
-                    backoff = retry_delay * (attempt + 1) # Linear backoff 1s, 2s
-                    print(f"[RETRY] Rate limited (429). Retrying in {backoff}s... (Attempt {attempt+1}/{max_retries})")
-                    await asyncio.sleep(backoff)
-                    continue
-                
-                response.raise_for_status()
-                result = response.json()
-                content = result["choices"][0]["message"]["content"]
-                finish_reason = result["choices"][0].get("finish_reason", "stop")
-                break
-            else:
-                raise Exception("API Rate Limit exceeded. Please wait 1 minute before trying again.")
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(endpoint, headers=headers, json=body)
+            response.raise_for_status()
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        finish_reason = result["choices"][0].get("finish_reason", "stop")
     except Exception as e:
         print(f"[ERROR] LLM API failed: {e}.")
         raise Exception(f"API Rate Limit or Connection Error. Please wait a few minutes and try again. Details: {e}")
