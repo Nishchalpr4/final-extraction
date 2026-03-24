@@ -16,7 +16,7 @@
     <!-- D3.js v7 -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
 
-    <link rel="stylesheet" href="/static/style.css?v=6">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
@@ -54,8 +54,9 @@
     <main id="app-main">
         <!-- LEFT PANEL: Input -->
         <aside id="input-panel">
-            <nav class="panel-tabs" style="display: none;">
+            <nav class="panel-tabs">
                 <button class="tab-btn active" data-tab="extract">Quick Extract</button>
+                <button class="tab-btn" data-tab="ingest">Ingestion Pipeline</button>
             </nav>
 
             <!-- TAB: Quick Extract -->
@@ -106,23 +107,16 @@
                         placeholder="Paste a section of a company document here...&#10;&#10;The system will extract structural entities (companies, business units, products, people, sites, etc.) and their relationships."></textarea>
                 </div>
 
-                <div class="input-actions" style="display: flex; gap: 8px;">
-                    <button id="btn-extract" class="btn-primary" style="flex: 1;">
-                        <span class="btn-text">Extract Entities</span>
-                        <span class="btn-loading" style="display:none;">
-                            <svg class="spinner" width="18" height="18" viewBox="0 0 18 18">
-                                <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="2" fill="none"
-                                    stroke-dasharray="30 14" stroke-linecap="round" />
-                            </svg>
-                            Extracting...
-                        </span>
-                    </button>
-                    <button id="show-prompt-btn" class="btn-secondary" title="Edit LLM Prompt" style="width: 48px; flex-shrink: 0; padding: 0; display: flex; align-items: center; justify-content: center;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                <button id="btn-extract" class="btn-primary">
+                    <span class="btn-text">Extract Entities</span>
+                    <span class="btn-loading" style="display:none;">
+                        <svg class="spinner" width="18" height="18" viewBox="0 0 18 18">
+                            <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="2" fill="none"
+                                stroke-dasharray="30 14" stroke-linecap="round" />
                         </svg>
-                    </button>
-                </div>
+                        Extracting...
+                    </span>
+                </button>
 
                 <!-- Extraction Result -->
                 <div id="extraction-result" class="result-card" style="display:none;">
@@ -137,6 +131,69 @@
                 </div>
             </div>
 
+            <!-- TAB: Ingestion Pipeline -->
+            <div id="tab-ingest" class="tab-content">
+                <div class="panel-header">
+                    <h2>Document Ingestion</h2>
+                </div>
+
+                <div class="ingestion-workflow">
+                    <div class="workflow-step">
+                        <label>1. Select/Upload PDF</label>
+                        <div class="file-upload-zone" id="file-drop-zone">
+                            <input type="file" id="pdf-upload" accept=".pdf" style="display:none;">
+                            <div class="upload-placeholder">
+                                <span>Drop PDF or click to browse</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="metadata-config" style="display:none;">
+                        <div class="workflow-step">
+                            <label>2. Configure Metadata</label>
+                            <div class="input-grid">
+                                <div class="input-group">
+                                    <label>Company</label>
+                                    <input type="text" id="meta-company" placeholder="e.g. Nike Inc.">
+                                </div>
+                                <div class="input-group">
+                                    <label>Ticker</label>
+                                    <input type="text" id="meta-ticker" placeholder="e.g. NKE">
+                                </div>
+                                <div class="input-group">
+                                    <label>Year</label>
+                                    <input type="number" id="meta-year" value="2024">
+                                </div>
+                                <div class="input-group">
+                                    <label>Period</label>
+                                    <select id="meta-period">
+                                        <option>Annual</option>
+                                        <option>Q1</option>
+                                        <option>Q2</option>
+                                        <option>Q3</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="btn-process-doc" class="btn-primary">
+                            <span class="btn-text">Process & Generate Golden Chunks</span>
+                            <span class="btn-loading" style="display:none;">Extracting...</span>
+                        </button>
+                    </div>
+
+                    <div id="ingestion-status" class="status-box" style="display:none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <span id="ingestion-status-text">Processing...</span>
+                    </div>
+
+                    <div id="golden-chunks-list" class="chunks-list">
+                        <!-- Chunks will appear here -->
+                    </div>
+                </div>
+            </div>
         </aside>
 
         <!-- RIGHT: Graph Visualization -->
@@ -180,40 +237,8 @@
         <span id="llm-info"></span>
     </footer>
 
-    <!-- Prompt Editor Overlay -->
-    <div id="prompt-overlay" class="overlay">
-        <div class="prompt-modal">
-            <div class="modal-header">
-                <h3>Advanced Prompt Editor</h3>
-                <button id="close-prompt-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-hint">
-                    The source text is automatically appended as a 'User' message. You are editing the **System**
-                    instructions below.
-                </div>
-
-                <div class="input-group">
-                    <label>Source Text Preview</label>
-                    <div id="prompt-source-preview" style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; font-size: 11px; color: var(--text-secondary); max-height: 80px; overflow-y: auto; font-style: italic; opacity: 0.8; margin-bottom: 12px;">
-                        No text provided.
-                    </div>
-                </div>
-
-                <div class="input-group" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-                    <label for="prompt-editor">System Prompt Instructions</label>
-                    <textarea id="prompt-editor" spellcheck="false" placeholder="Loading prompt..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="reset-prompt-btn" class="secondary-btn">Reset to Default</button>
-                <button id="run-custom-btn" class="primary-btn">Run with Custom Prompt</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="/static/graph.js?v=8"></script>
-    <script src="/static/app.js?v=8"></script>
+    <script src="/static/graph.js"></script>
+    <script src="/static/app.js"></script>
 </body>
 
 </html>

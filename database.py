@@ -90,6 +90,7 @@ class DatabaseManager:
                     name TEXT NOT NULL,
                     type TEXT NOT NULL,
                     color TEXT,
+                    description TEXT,
                     attributes TEXT, -- JSON string
                     aliases TEXT,    -- JSON string
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -104,6 +105,8 @@ class DatabaseManager:
                     source_id TEXT NOT NULL,
                     target_id TEXT NOT NULL,
                     relation TEXT NOT NULL,
+                    weight FLOAT DEFAULT 1.0,
+                    attributes TEXT, -- JSON string
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(source_id) REFERENCES entity_master(id) ON DELETE CASCADE,
                     FOREIGN KEY(target_id) REFERENCES entity_master(id) ON DELETE CASCADE
@@ -277,36 +280,39 @@ class DatabaseManager:
         finally:
             self._release_connection(conn)
 
-    def upsert_entity(self, entity_id: str, name: str, entity_type: str, color: str = None, attributes: dict = None, aliases: list = None):
+    def upsert_entity(self, entity_id: str, name: str, entity_type: str, color: str = None, description: str = None, attributes: dict = None, aliases: list = None):
         """Upserts an entity into the master table."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
             cursor.execute("""
-                INSERT INTO entity_master (id, name, type, color, attributes, aliases, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO entity_master (id, name, type, color, description, attributes, aliases, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     type = EXCLUDED.type,
                     color = COALESCE(EXCLUDED.color, entity_master.color),
+                    description = COALESCE(EXCLUDED.description, entity_master.description),
                     attributes = EXCLUDED.attributes,
                     aliases = EXCLUDED.aliases,
                     updated_at = CURRENT_TIMESTAMP
-            """, (entity_id, name, entity_type, color, json.dumps(attributes or {}), json.dumps(aliases or [])))
+            """, (entity_id, name, entity_type, color, description, json.dumps(attributes or {}), json.dumps(aliases or [])))
             conn.commit()
         finally:
             self._release_connection(conn)
 
-    def add_relation(self, rel_id: str, source_id: str, target_id: str, relation: str):
+    def add_relation(self, rel_id: str, source_id: str, target_id: str, relation: str, weight: float = 1.0, attributes: dict = None):
         """Adds a unique relation link to Neon."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
             cursor.execute("""
-                INSERT INTO relation_master (id, source_id, target_id, relation)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO NOTHING
-            """, (rel_id, source_id, target_id, relation))
+                INSERT INTO relation_master (id, source_id, target_id, relation, weight, attributes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    weight = EXCLUDED.weight,
+                    attributes = EXCLUDED.attributes
+            """, (rel_id, source_id, target_id, relation, weight, json.dumps(attributes or {})))
             conn.commit()
         finally:
             self._release_connection(conn)
@@ -369,7 +375,7 @@ class DatabaseManager:
         try:
             cursor = self._get_cursor(conn)
             
-            cursor.execute("SELECT id, name as label, type, color, attributes, aliases FROM entity_master")
+            cursor.execute("SELECT id, name as label, type, color, description, attributes, aliases FROM entity_master")
             nodes = []
             for row in cursor.fetchall():
                 node = dict(row)
@@ -403,10 +409,11 @@ class DatabaseManager:
                 node['quant_metrics'] = list(consensus_metrics.values())
                 nodes.append(node)
 
-            cursor.execute("SELECT id, source_id as source, target_id as target, relation FROM relation_master")
+            cursor.execute("SELECT id, source_id as source, target_id as target, relation, weight, attributes FROM relation_master")
             links = []
             for row in cursor.fetchall():
                 link = dict(row)
+                link['attributes'] = json.loads(link['attributes']) if link.get('attributes') else {}
                 cursor.execute("""
                     SELECT status, confidence, source_text, document_name, section_ref 
                     FROM assertions 

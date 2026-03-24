@@ -97,7 +97,9 @@ def get_dynamic_prompt() -> str:
         "MANAGEMENT CHAIN: [Company] -> HAS_MANAGEMENT -> [Management] -> HAS_ROLE -> [Role] -> HELD_BY -> [Person].",
         "GEOSPATIAL HIERARCHY: Region -> Country -> Site. Link Company to the Region.",
         "CATEGORY SYNTHESIS: You MUST synthesize intermediate nodes (Portfolio -> Domain -> Family) even if not explicitly named in the text, to bridge the leaf products back to the ROOT.",
-        "EVIDENCE: Every relation MUST have 'source_text' with the EXACT verbatim quote."
+        "EVIDENCE: Every relation MUST have 'source_text' with the EXACT verbatim quote.",
+        "ENTITY DESCRIPTION (STRICT): Every entity MUST have a concise 1-sentence 'description' field explaining its identity/role.",
+        "RELATION ATTRIBUTES (STRICT): Every relation MUST have an 'attributes' object containing a 'description' (explaining the link) and a 'weight' (float 0.0-1.0 representing strength/importance)."
     ]
     
     rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
@@ -115,28 +117,29 @@ You are an Advanced Investment Analyst AI. Your task is to transform unstructure
 
 ### 3. FEW-SHOT EXAMPLE (GOLD STANDARD)
 INPUT: "Apple designs and sells consumer electronics like the iPhone and Mac. Manufacturing is handled by Foxconn in Asia."
-OUTPUT:
-{{
+OUTPUT:{{
     "thought_process": "1. Apple Inc. is ROOT. 2. Created 'Apple Product Portfolio' as a top-level container. 3. 'Consumer Electronics' is a ProductDomain under the Portfolio. 4. iPhone and Mac share a 'Hardware Products' ProductFamily under the domain. 5. Foxconn is a Manufacturer; linked it to Apple via MANUFACTURES_FOR. 6. Asia is a Geography; linked Apple to it via OPERATES_IN.",
     "entities": [
-        {{ "temp_id": "e_root", "entity_type": "LegalEntity", "canonical_name": "Apple Inc." }},
-        {{ "temp_id": "e_port", "entity_type": "ProductPortfolio", "canonical_name": "Apple Product Portfolio" }},
-        {{ "temp_id": "e_dom", "entity_type": "ProductDomain", "canonical_name": "Consumer Electronics" }},
-        {{ "temp_id": "e_fam", "entity_type": "ProductFamily", "canonical_name": "Hardware Products" }},
-        {{ "temp_id": "e_lp", "entity_type": "ProductLine", "canonical_name": "iPhone" }},
-        {{ "temp_id": "e_lm", "entity_type": "ProductLine", "canonical_name": "Mac" }},
-        {{ "temp_id": "e_mfr", "entity_type": "Manufacturer", "canonical_name": "Foxconn" }},
-        {{ "temp_id": "e_geo", "entity_type": "Geography", "canonical_name": "Asia" }}
+        {{ "temp_id": "e_root", "entity_type": "LegalEntity", "canonical_name": "Apple Inc.", "description": "A global leader in consumer electronics and software services." }},
+        {{ "temp_id": "e_port", "entity_type": "ProductPortfolio", "canonical_name": "Apple Product Portfolio", "description": "The unified collection of Apple's consumer and professional products." }},
+        {{ "temp_id": "e_dom", "entity_type": "ProductDomain", "canonical_name": "Consumer Electronics", "description": "A broad domain covering electronic devices intended for everyday use." }},
+        {{ "temp_id": "e_fam", "entity_type": "ProductFamily", "canonical_name": "Hardware Products", "description": "Tangible devices manufactured and sold by Apple." }},
+        {{ "temp_id": "e_lp", "entity_type": "ProductLine", "canonical_name": "iPhone", "description": "Apple's flagship line of smartphones." }},
+        {{ "temp_id": "e_lm", "entity_type": "ProductLine", "canonical_name": "Mac", "description": "Apple's line of personal computers and laptops." }},
+        {{ "temp_id": "e_mfr", "entity_type": "Manufacturer", "canonical_name": "Foxconn", "description": "Major contract electronics manufacturer and key Apple supplier." }},
+        {{ "temp_id": "e_geo", "entity_type": "Geography", "canonical_name": "Asia", "description": "The primary geographic region for Apple's supply chain operations." }}
     ],
     "relations": [
-        {{ "source_temp_id": "e_root", "target_temp_id": "e_port", "relation_type": "HAS_PRODUCT_PORTFOLIO", "source_text": "Apple designs and sells...", "confidence": 1.0 }},
-        {{ "source_temp_id": "e_port", "target_temp_id": "e_dom", "relation_type": "HAS_PRODUCT_DOMAIN", "source_text": "consumer electronics", "confidence": 1.0 }},
-        {{ "source_temp_id": "e_dom", "target_temp_id": "e_fam", "relation_type": "HAS_PRODUCT_FAMILY", "source_text": "iPhone and Mac", "confidence": 1.0 }},
-        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lp", "relation_type": "HAS_PRODUCT_LINE", "source_text": "iPhone", "confidence": 1.0 }},
-        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lm", "relation_type": "HAS_PRODUCT_LINE", "source_text": "Mac", "confidence": 1.0 }},
-        {{ "source_temp_id": "e_mfr", "target_temp_id": "e_root", "relation_type": "MANUFACTURES_FOR", "source_text": "manufacturing is handled by Foxconn", "confidence": 1.0 }},
-        {{ "source_temp_id": "e_root", "target_temp_id": "e_geo", "relation_type": "OPERATES_IN", "source_text": "manufacturing concentrated in Asia", "confidence": 1.0 }}
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_port", "relation_type": "HAS_PRODUCT_PORTFOLIO", "source_text": "Apple designs and sells...", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Apple manages its entire product offering through this portfolio." }} }},
+        {{ "source_temp_id": "e_port", "target_temp_id": "e_dom", "relation_type": "HAS_PRODUCT_DOMAIN", "source_text": "consumer electronics", "confidence": 1.0, "weight": 0.9, "attributes": {{ "description": "The portfolio is anchored by the Consumer Electronics domain." }} }},
+        {{ "source_temp_id": "e_dom", "target_temp_id": "e_fam", "relation_type": "HAS_PRODUCT_FAMILY", "source_text": "iPhone and Mac", "confidence": 1.0, "weight": 0.8, "attributes": {{ "description": "Hardware products form the core of the consumer electronics domain." }} }},
+        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lp", "relation_type": "HAS_PRODUCT_LINE", "source_text": "iPhone", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "iPhone is the primary revenue driver in the hardware family." }} }},
+        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lm", "relation_type": "HAS_PRODUCT_LINE", "source_text": "Mac", "confidence": 1.0, "weight": 0.7, "attributes": {{ "description": "Mac is a secondary but significant part of the hardware family." }} }},
+        {{ "source_temp_id": "e_mfr", "target_temp_id": "e_root", "relation_type": "MANUFACTURES_FOR", "source_text": "manufacturing is handled by Foxconn", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Foxconn serves as the primary assembly partner for Apple." }} }},
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_geo", "relation_type": "OPERATES_IN", "source_text": "manufacturing concentrated in Asia", "confidence": 1.0, "weight": 0.9, "attributes": {{ "description": "Apple has deep operational and supply chain roots across Asia." }} }}
     ]
+}}
+
 }}
 
 ### 4. FINAL INSTRUCTION
@@ -197,11 +200,18 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    # Parse JSON
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError:
-        parsed = _repair_truncated_json(content)
+    # Parse JSON - DEFENSIVE
+    if not content or not content.strip():
+        print(f"[ERROR] LLM returned empty content. Finish reason: {finish_reason}")
+        parsed = {"entities": [], "relations": [], "abstentions": ["LLM returned empty response"]}
+    else:
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            print(f"[DEBUG] JSON Decode Error. Content starts with: {content[:100]}...")
+            parsed = _repair_truncated_json(content)
+            if not parsed:
+                parsed = {"entities": [], "relations": [], "abstentions": ["FAILED_TO_PARSE_JSON"]}
 
     # Load dynamic ontology for validation
     ontology = db.get_ontology()

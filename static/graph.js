@@ -38,7 +38,7 @@ class GraphVisualization {
         defs.append("marker")
             .attr("id", "arrow")
             .attr("viewBox", "0 -5 10 10")
-            .attr("refX", 10)
+            .attr("refX", 8)
             .attr("refY", 0)
             .attr("markerWidth", 8)
             .attr("markerHeight", 8)
@@ -79,36 +79,30 @@ class GraphVisualization {
 
         // Force simulation - STRICT ARCHITECTURAL TOP-TO-BOTTOM
         this.simulation = d3.forceSimulation()
-            .force("link", d3.forceLink().id(d => d.id).distance(180).strength(0.6)) // Increased distance
-            .force("charge", d3.forceManyBody().strength(-1200).distanceMax(1200)) // Stronger repulse
-            .force("collision", d3.forceCollide().radius(120).iterations(4)) // Increased radius and iterations
-            
-            // Strict Tiering: Force Y pulls nodes to their specific architectural level
-            .force("y", d3.forceY(d => this._getNodeLevel(d) * 240 + 100).strength(0.9)) // More tier spacing
-            
-            // Clustering Force: Keep children near parents (Management -> Roles)
-            .force("cluster", (alpha) => this._applyClustering(alpha))
+            .force("link", d3.forceLink().id(d => d.id).distance(320).strength(0.7)) // More spacing
+            .force("charge", d3.forceManyBody().strength(-3000).distanceMax(2000)) // More repulsion
+            .force("collision", d3.forceCollide().radius(180).iterations(6)) // Less overlap
 
-            // Horizontal Separation: Organize categories from Left to Right
+            // Adaptive vertical tiering
+            .force("y", d3.forceY(d => this._getNodeLevel(d) * 350 + 120).strength(1.0))
+
+            // Adaptive horizontal separation by type
             .force("x", d3.forceX(d => {
                 const type = d.type;
                 const level = this._getNodeLevel(d);
-                if (level === 0) return this.width / 2; // Apex centered
-                
-                // Management & People on Left
-                if (["Management", "Person", "Role"].includes(type)) return this.width * 0.25;
-                // External/Competitors on Right
-                if (["Competitors", "ExternalOrganization"].includes(type)) return this.width * 0.75;
-                // Geography/Sites in Center-Left
-                if (["Geography", "Site"].includes(type)) return this.width * 0.4;
-                // Business Units & Products in Center-Right
-                if (["BusinessUnit", "ProductPortfolio", "ProductDomain", "ProductFamily", "ProductLine"].includes(type)) return this.width * 0.6;
-                
+                if (level === 0) return this.width / 2;
+                if (["Management", "Person", "Role"].includes(type)) return this.width * 0.2;
+                if (["Competitors", "ExternalOrganization"].includes(type)) return this.width * 0.8;
+                if (["Geography", "Site"].includes(type)) return this.width * 0.35;
+                if (["BusinessUnit", "ProductPortfolio", "ProductDomain", "ProductFamily", "ProductLine"].includes(type)) return this.width * 0.65;
                 return this.width / 2;
-            }).strength(0.4))
-            
-            .alphaDecay(0.04)
+            }).strength(0.5))
+
+            .alphaDecay(0.03)
             .on("tick", () => this._tick());
+
+        // Fit to view after simulation stabilizes
+        setTimeout(() => this._fitToView(), 1200);
 
 
         this.simulation.stop();
@@ -223,6 +217,13 @@ class GraphVisualization {
 
     // ── Rendering ───────────────────────────────────────────────
 
+    _getNodeDims(d) {
+        if (this.collapsedNodes.has(d.id)) {
+            return { w: 140, h: 50 };
+        }
+        return { w: 240, h: 120 };
+    }
+
     _renderNodes(newNodeIds) {
         const self = this;
         const nodeSelection = this.nodeGroup.selectAll(".node-group")
@@ -240,54 +241,44 @@ class GraphVisualization {
             .style("cursor", "pointer")
             .call(this._drag());
 
-        // Background card - ENLARGED
+        // Background card
         enter.append("rect")
             .attr("class", "node-bg")
-            .attr("width", 220)
-            .attr("height", 70)
-            .attr("x", -110)
-            .attr("y", -35)
-            .attr("rx", 8)
-            .attr("ry", 8)
+            .attr("width", d => this._getNodeDims(d).w)
+            .attr("height", d => this._getNodeDims(d).h)
+            .attr("x", d => -this._getNodeDims(d).w / 2)
+            .attr("y", d => -this._getNodeDims(d).h / 2)
+            .attr("rx", 10)
+            .attr("ry", 10)
             .attr("fill", "#1a2845")
             .attr("stroke", d => {
-                if (this.collapsedNodes.has(d.id)) return "#3b82f6"; // Primary blue for collapsed
+                if (this.collapsedNodes.has(d.id)) return "#3b82f6";
                 return newNodeIds.has(d.id) ? "#fbbf24" : "#334155";
             })
             .attr("stroke-width", d => (newNodeIds.has(d.id) || this.collapsedNodes.has(d.id)) ? 3 : 2)
             .style("filter", "url(#shadow)");
         
-        // Collapse Indicator (Tiny (+) or (-) icon)
-        enter.append("text")
-            .attr("class", "collapse-icon")
-            .attr("x", 95)
-            .attr("y", -20)
-            .attr("fill", "#94a3b8")
-            .attr("font-size", "14px")
-            .attr("font-weight", "bold")
-            .text(d => this.collapsedNodes.has(d.id) ? "+" : "−");
-
-        // Color accent line - larger
+        // Color accent line
         enter.append("rect")
             .attr("width", 5)
-            .attr("height", 70)
-            .attr("x", -110)
-            .attr("y", -35)
+            .attr("height", d => this._getNodeDims(d).h)
+            .attr("x", d => -this._getNodeDims(d).w / 2)
+            .attr("y", d => -this._getNodeDims(d).h / 2)
             .attr("rx", 2)
             .attr("fill", d => d.color || "#3b82f6");
 
-        // Icon bg - larger
+        // Icon bg
         enter.append("circle")
-            .attr("cx", -75)
-            .attr("cy", 0)
+            .attr("cx", d => -this._getNodeDims(d).w / 2 + 30)
+            .attr("cy", d => -this._getNodeDims(d).h / 2 + 30)
             .attr("r", 16)
             .attr("fill", d => d.color || "#3b82f6")
             .attr("opacity", 0.2);
 
-        // Icon text - larger
+        // Icon text
         enter.append("text")
-            .attr("x", -75)
-            .attr("y", 6)
+            .attr("x", d => -this._getNodeDims(d).w / 2 + 30)
+            .attr("y", d => -this._getNodeDims(d).h / 2 + 36)
             .attr("text-anchor", "middle")
             .attr("fill", d => d.color || "#3b82f6")
             .attr("font-size", "14px")
@@ -295,38 +286,108 @@ class GraphVisualization {
             .attr("pointer-events", "none")
             .text(d => this._getNodeIcon(d.type));
 
-        // Type label - larger
+        // Type label
         enter.append("text")
-            .attr("x", -35)
-            .attr("y", -8)
+            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
+            .attr("y", d => -this._getNodeDims(d).h / 2 + 22)
             .attr("fill", d => d.color || "#3b82f6")
-            .attr("font-size", "11px")
-            .attr("font-weight", "700")
-            .attr("letter-spacing", "0.08em")
+            .attr("font-size", "10px")
+            .attr("font-weight", "800")
+            .attr("letter-spacing", "0.05em")
             .attr("pointer-events", "none")
-            .text(d => this._formatType(d.type));
+            .text(d => this._formatType(d.type).toUpperCase());
 
-        // Entity name main label - MUCH LARGER
+        // Entity name
         enter.append("text")
-            .attr("x", -35)
-            .attr("y", 12) // Moved up slightly
+            .attr("class", "node-title")
+            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
+            .attr("y", d => -this._getNodeDims(d).h / 2 + 42)
             .attr("fill", "#ffffff")
-            .attr("font-size", "14px")
+            .attr("font-size", "15px")
             .attr("font-weight", "700")
             .attr("pointer-events", "none")
-            .text(d => this._truncateLabel(d.label, 24));
+            .text(d => this._truncateLabel(d.label, 20));
 
-        // SUBTITLE (Context/Role) - Added for "Why" context
+        // Node summary (intent/presence)
         enter.append("text")
-            .attr("x", -35)
-            .attr("y", 28)
-            .attr("fill", "#94a3b8")
+            .attr("class", "node-summary")
+            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
+            .attr("y", d => -this._getNodeDims(d).h / 2 + 60)
+            .attr("fill", "#cbd5e1")
             .attr("font-size", "10px")
             .attr("font-weight", "400")
+            .attr("font-style", "italic")
             .attr("pointer-events", "none")
             .text(d => {
-                const ctx = d.attributes?.context || d.attributes?.role || d.attributes?.description || "";
-                return this._truncateLabel(ctx, 32);
+                // Prefer explicit summary, else auto-generate
+                if (d.summary && d.summary.length > 0) {
+                    return self._truncateLabel(d.summary, 38);
+                }
+                // Fallback: type, label, and a key attribute
+                let keyAttr = "";
+                if (d.attributes) {
+                    const keys = Object.keys(d.attributes).filter(k => k !== 'description');
+                    if (keys.length > 0) {
+                        keyAttr = `${keys[0]}: ${d.attributes[keys[0]]}`;
+                    }
+                }
+                let fallback = `${self._formatType(d.type)} node`;
+                if (d.label) fallback += ` — ${d.label}`;
+                if (keyAttr) fallback += ` (${keyAttr})`;
+                return self._truncateLabel(fallback, 38);
+            });
+
+        // Attributes Grid (Visible on glance)
+        enter.each(function(d) {
+            if (self.collapsedNodes.has(d.id)) return;
+            const container = d3.select(this);
+            const attrs = d.attributes || {};
+            const keys = Object.keys(attrs).filter(k => k !== 'description');
+            const maxDirect = 4; // Show up to 4 attributes directly
+            keys.forEach((key, i) => {
+                if (i < maxDirect) {
+                    container.append("text")
+                        .attr("x", -self._getNodeDims(d).w / 2 + 15)
+                        .attr("y", 65 + (i * 14))
+                        .attr("fill", "#94a3b8")
+                        .attr("font-size", "9px")
+                        .attr("font-weight", "600")
+                        .text(`${key.toUpperCase()}:`);
+
+                    container.append("text")
+                        .attr("x", -45)
+                        .attr("y", 65 + (i * 14))
+                        .attr("fill", "#cbd5e1")
+                        .attr("font-size", "9px")
+                        .attr("font-weight", "400")
+                        .text(self._truncateLabel(String(attrs[key]), 25));
+                }
+            });
+            // If there are more attributes, show a '...' indicator
+            if (keys.length > maxDirect) {
+                container.append("text")
+                    .attr("x", -self._getNodeDims(d).w / 2 + 15)
+                    .attr("y", 65 + (maxDirect * 14))
+                    .attr("fill", "#cbd5e1")
+                    .attr("font-size", "9px")
+                    .attr("font-weight", "400")
+                    .text("... more");
+            }
+        });
+
+        // Description (bottom line)
+        enter.append("text")
+            .attr("x", d => -this._getNodeDims(d).w / 2 + 15)
+            .attr("y", d => this._getNodeDims(d).h / 2 - 12)
+            .attr("fill", "#64748b")
+            .attr("font-size", "9px")
+            .attr("font-weight", "400")
+            .attr("font-style", "italic")
+            .attr("pointer-events", "none")
+            .text(d => {
+                if (this.collapsedNodes.has(d.id)) return "";
+                const desc = d.description || d.attributes?.description || "";
+                return self._truncateLabel(desc, 45);
             });
 
         // Interaction
@@ -348,9 +409,11 @@ class GraphVisualization {
         enter.transition().duration(600).ease(d3.easeCubicOut)
             .attr("opacity", 1);
 
-        // Merge
-        const merged = enter.merge(nodeSelection);
+        // Update positions on current nodes too
+        nodeSelection.merge(enter)
+            .attr("transform", d => `translate(${d.x}, ${d.y})`);
     }
+
 
     _renderLinks(newLinkIds) {
         const self = this;
@@ -367,7 +430,7 @@ class GraphVisualization {
             .attr("class", "edge-group")
             .attr("opacity", 0);
 
-        // Curved path - THICKER AND MORE VISIBLE
+        // Curved path
         enter.append("path")
             .attr("class", d => `edge-path ${newLinkIds.has(d.id) ? "edge-new" : ""}`)
             .attr("fill", "none")
@@ -376,106 +439,162 @@ class GraphVisualization {
                 if (d.relation === "COMPETES_WITH") return "#ef4444";
                 return "#475569";
             })
-            .attr("stroke-width", d => newLinkIds.has(d.id) ? 3 : 2)
+            .attr("stroke-width", d => {
+                const base = newLinkIds.has(d.id) ? 3 : 2;
+                const weight = d.weight || 1.0;
+                return base * (0.5 + weight);
+            })
             .attr("stroke-dasharray", d => d.relation === "COMPETES_WITH" ? "8,5" : "none")
             .attr("stroke-linecap", "round")
             .attr("stroke-linejoin", "round")
             .attr("marker-end", "url(#arrow)");
 
-        // Edge label background - larger
+        // Label background
         enter.append("rect")
             .attr("class", "edge-label-bg")
             .attr("rx", 4).attr("ry", 4)
             .attr("fill", "#0f172a")
             .attr("stroke", "#475569")
-            .attr("stroke-width", 1);
+            .attr("stroke-width", 1)
+            .attr("height", 16)
+            .attr("width", d => {
+                const label = (d.relation || "related to").replace(/_/g, " ");
+                return label.length * 6 + 12;
+            });
 
-        // Relation label on edge - LARGER
+        // Label text
         enter.append("text")
             .attr("class", "edge-label")
             .attr("text-anchor", "middle")
-            // Offset logic: move label slightly if multiple edges exist
-            .attr("dy", (d, i) => {
-                const sameNodes = self.links.filter(l => 
-                    (l.source.id === d.source.id && l.target.id === d.target.id) ||
-                    (l.source.id === d.target.id && l.target.id === d.source.id)
-                );
-                if (sameNodes.length > 1) {
-                    const idx = sameNodes.indexOf(d);
-                    return `${0.35 + (idx * 1.2)}em`; // Space them out vertically
-                }
-                return "0.35em";
-            })
             .attr("fill", d => newLinkIds.has(d.id) ? "#fbbf24" : "#94a3b8")
             .attr("font-size", "11px")
             .attr("font-weight", "600")
             .attr("letter-spacing", "0.05em")
-            .text(d => d.relation.replace(/_/g, " "));
+            .text(d => {
+                const label = (d.relation || "related to").replace(/_/g, " ");
+                const weight = d.weight || 1.0;
+                return weight < 1.0 ? `${label} (${weight.toFixed(1)})` : label;
+            });
 
         enter.on("click", (event, d) => this._showDetails(d, "link"));
-
-        // Animate in
-        enter.transition().duration(600).delay(200)
-            .attr("opacity", 1);
-
+        enter.transition().duration(600).delay(200).attr("opacity", 1);
         enter.merge(linkSelection);
     }
 
-    // ── Layout Tick ────────────────────────────────────────────
-
     _tick() {
-        // Update paths with curves and offsets to prevent overlaps
+        const self = this;
+        
+        // Dynamic box intersection with marker padding
+        const getIntersection = (node, otherX, otherY, padding = 0) => {
+            const dx = otherX - node.x;
+            const dy = otherY - node.y;
+            if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return { x: node.x, y: node.y };
+
+            const dims = this._getNodeDims(node);
+            const W = dims.w / 2 + padding;
+            const H = dims.h / 2 + padding;
+            
+            const tan = Math.abs(dy / dx);
+            const rectTan = H / W;
+            
+            let scale = 1.0;
+            if (tan > rectTan) {
+                scale = H / Math.abs(dy);
+            } else {
+                scale = W / Math.abs(dx);
+            }
+            return {
+                x: node.x + dx * scale,
+                y: node.y + dy * scale
+            };
+        };
+
+        const MARKER_PADDING = 8; // Offset for arrowhead tip
+
         this.linkGroup.selectAll(".edge-path")
             .attr("d", d => {
-                const dx = d.target.x - d.source.x;
-                const dy = d.target.y - d.source.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-                // Box intersection for target (220x70 card)
-                const W = 110 + 6;
-                const H = 35 + 6;
-                const scaleTarget = Math.min(
-                    Math.abs(dx) > 0.1 ? Math.abs(W / dx) : W,
-                    Math.abs(dy) > 0.1 ? Math.abs(H / dy) : H,
-                    1.0
-                ) * 0.98;
-
-                const sx = d.source.x;
-                const sy = d.source.y;
-                const tx = d.target.x - dx * scaleTarget;
-                const ty = d.target.y - dy * scaleTarget;
-
-                // S-Curve Offset logic for parallel links between same nodes
                 const sameNodes = this.links.filter(l => 
                     (l.source.id === d.source.id && l.target.id === d.target.id) ||
                     (l.source.id === d.target.id && l.target.id === d.source.id)
                 );
                 
-                const offsetAmount = 25; // Horizontal sway offset
+                const offsetAmount = 50;
                 let midOffset = 0;
                 if (sameNodes.length > 1) {
                     const idx = sameNodes.indexOf(d);
                     midOffset = (idx - (sameNodes.length - 1) / 2) * offsetAmount;
                 }
 
-                const midY = sy + (ty - sy) / 2;
-                return `M${sx},${sy} C${sx + midOffset},${midY} ${tx + midOffset},${midY} ${tx},${ty}`;
+                const mx = (d.source.x + d.target.x) / 2;
+                const my = (d.source.y + d.target.y) / 2;
+                const dx_total = d.target.x - d.source.x;
+                const dy_total = d.target.y - d.source.y;
+                const len = Math.sqrt(dx_total * dx_total + dy_total * dy_total) || 1;
+                const nx = -dy_total / len;
+                const ny = dx_total / len;
+                
+                const cp1x = mx + nx * midOffset;
+                const cp1y = my + ny * midOffset;
+
+                // Stop source line at edge, stop target line EARLY for arrow marker
+                const p1 = getIntersection(d.source, cp1x, cp1y, 2);
+                const p2 = getIntersection(d.target, cp1x, cp1y, MARKER_PADDING);
+
+                return `M${p1.x},${p1.y} Q${cp1x},${cp1y} ${p2.x},${p2.y}`;
             });
 
-
-        // Position edge labels at midpoint of S-Curve
         this.linkGroup.selectAll(".edge-label")
-            .attr("x", d => (d.source.x + d.target.x) / 2)
-            .attr("y", d => (d.source.y + d.target.y) / 2);
+            .attr("x", d => {
+                const sameNodes = this.links.filter(l => 
+                    (l.source.id === d.source.id && l.target.id === d.target.id) ||
+                    (l.source.id === d.target.id && l.target.id === d.source.id)
+                );
+                const offsetAmount = 50;
+                let midOffset = 0;
+                if (sameNodes.length > 1) {
+                    const idx = sameNodes.indexOf(d);
+                    midOffset = (idx - (sameNodes.length - 1) / 2) * offsetAmount;
+                }
+                const mx = (d.source.x + d.target.x) / 2;
+                const dx_total = d.target.x - d.source.x;
+                const dy_total = d.target.y - d.source.y;
+                const len = Math.sqrt(dx_total * dx_total + dy_total * dy_total) || 1;
+                const nx = -dy_total / len;
+                const cp1x = mx + nx * midOffset;
+                // Quadratic curve midpoint: 0.25*P0 + 0.5*P1 + 0.25*P2
+                return 0.25 * d.source.x + 0.5 * cp1x + 0.25 * d.target.x;
+            })
+            .attr("y", d => {
+                const sameNodes = this.links.filter(l => 
+                    (l.source.id === d.source.id && l.target.id === d.target.id) ||
+                    (l.source.id === d.target.id && l.target.id === d.source.id)
+                );
+                const offsetAmount = 50;
+                let midOffset = 0;
+                if (sameNodes.length > 1) {
+                    const idx = sameNodes.indexOf(d);
+                    midOffset = (idx - (sameNodes.length - 1) / 2) * offsetAmount;
+                }
+                const my = (d.source.y + d.target.y) / 2;
+                const dx_total = d.target.x - d.source.x;
+                const dy_total = d.target.y - d.source.y;
+                const len = Math.sqrt(dx_total * dx_total + dy_total * dy_total) || 1;
+                const ny = dx_total / len;
+                const cp1y = my + ny * midOffset;
+                // Quadratic curve midpoint: 0.25*P0 + 0.5*P1 + 0.25*P2
+                return 0.25 * d.source.y + 0.5 * cp1y + 0.25 * d.target.y;
+            });
 
-        // Position edge label backgrounds (Mathematically, VERY FAST)
         this.linkGroup.selectAll(".edge-label-bg")
-            .attr("width", d => d.relation.length * 6 + 10)
-            .attr("height", 16)
-            .attr("x", d => ((d.source.x + d.target.x) / 2) - (d.relation.length * 6 + 10) / 2)
-            .attr("y", d => ((d.source.y + d.target.y) / 2) - 8);
+            .attr("x", function(d) {
+                const sibling = d3.select(this.parentNode).select(".edge-label");
+                return sibling.attr("x") - d3.select(this).attr("width") / 2;
+            })
+            .attr("y", function(d) {
+                const sibling = d3.select(this.parentNode).select(".edge-label");
+                return sibling.attr("y") - 8;
+            });
 
-        // Update node positions
         this.nodeGroup.selectAll(".node-group")
             .attr("transform", d => `translate(${d.x}, ${d.y})`);
     }

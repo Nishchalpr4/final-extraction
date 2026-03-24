@@ -158,6 +158,7 @@ async def get_log():
 
 
 @app.delete("/api/graph")
+@app.post("/api/reset")
 async def reset_graph():
     """Clear the entire graph store."""
     store.reset()

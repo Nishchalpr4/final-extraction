@@ -304,9 +304,22 @@ async function handleExtract(customPrompt = null) {
 
 // ── Reset Handler ──────────────────────────────────────────────────
 async function handleReset() {
-    if (!confirm("Reset the entire graph database?")) return;
-    
     const btn = document.getElementById("btn-reset");
+    
+    // Simple double-click confirmation to avoid native popup blocking
+    if (!btn.classList.contains("confirm-pending")) {
+        btn.classList.add("confirm-pending");
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<span>Confirm Reset?</span>`;
+        
+        setTimeout(() => {
+            btn.classList.remove("confirm-pending");
+            btn.innerHTML = originalHtml;
+        }, 3000);
+        return;
+    }
+    
+    btn.classList.remove("confirm-pending");
     const originalText = btn.innerHTML;
     
     try {

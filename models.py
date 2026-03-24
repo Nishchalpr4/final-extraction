@@ -38,6 +38,7 @@ class EntityCandidate(BaseModel):
     canonical_name: str
     aliases: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
+    description: str | None = Field(default="No description provided.")
     evidence: list[EvidenceRef] = Field(default_factory=list)
     confidence: float = 1.0
     source_text: Optional[str] = None
@@ -49,6 +50,7 @@ class RelationCandidate(BaseModel):
     target_temp_id: str
     relation_type: str
     attributes: dict[str, Any] = Field(default_factory=dict)
+    weight: float = 1.0
     evidence: list[EvidenceRef] = Field(default_factory=list)
     confidence: float = 1.0
     source_text: Optional[str] = None
@@ -125,6 +127,7 @@ class RelationMaster(BaseModel):
     relation_type: str
     source_entity_id: str
     target_entity_id: str
+    weight: float = 1.0
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 class EntityAssertion(BaseModel):
