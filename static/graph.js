@@ -308,13 +308,24 @@ class GraphVisualization {
             .attr("pointer-events", "none")
             .text(d => this._truncateLabel(d.label, 20));
 
-        // Node summary (intent/presence)
+        // Short Info (The requested 'short info inside node')
+        enter.append("text")
+            .attr("class", "node-short-info")
+            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
+            .attr("y", d => -this._getNodeDims(d).h / 2 + 60)
+            .attr("fill", d => d.color || "#3b82f6")
+            .attr("font-size", "11px")
+            .attr("font-weight", "600")
+            .attr("pointer-events", "none")
+            .text(d => this._truncateLabel(d.short_info || "N/A", 30));
+
+        // Node summary (fallback or extra context)
         enter.append("text")
             .attr("class", "node-summary")
             .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
-            .attr("y", d => -this._getNodeDims(d).h / 2 + 60)
+            .attr("y", d => -this._getNodeDims(d).h / 2 + 75)
             .attr("fill", "#cbd5e1")
-            .attr("font-size", "10px")
+            .attr("font-size", "9px")
             .attr("font-weight", "400")
             .attr("font-style", "italic")
             .attr("pointer-events", "none")

@@ -39,6 +39,7 @@ class EntityCandidate(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
     description: str | None = Field(default="No description provided.")
+    short_info: str | None = Field(default="N/A")
     evidence: list[EvidenceRef] = Field(default_factory=list)
     confidence: float = 1.0
     source_text: Optional[str] = None
@@ -120,6 +121,7 @@ class EntityMaster(BaseModel):
     canonical_name: str
     aliases: list[str] = Field(default_factory=list)
     description: Optional[str] = None
+    short_info: Optional[str] = "N/A"
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 class RelationMaster(BaseModel):

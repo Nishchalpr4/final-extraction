@@ -92,6 +92,7 @@ class DatabaseManager:
                     type TEXT NOT NULL,
                     color TEXT,
                     description TEXT,
+                    short_info TEXT, -- ADDED
                     attributes TEXT, -- JSON string
                     aliases TEXT,    -- JSON string
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -281,23 +282,24 @@ class DatabaseManager:
         finally:
             self._release_connection(conn)
 
-    def upsert_entity(self, entity_id: str, name: str, entity_type: str, color: str = None, description: str = None, attributes: dict = None, aliases: list = None):
+    def upsert_entity(self, entity_id: str, name: str, entity_type: str, color: str = None, description: str = None, short_info: str = None, attributes: dict = None, aliases: list = None):
         """Upserts an entity into the master table."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
             cursor.execute("""
-                INSERT INTO entity_master (id, name, type, color, description, attributes, aliases, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO entity_master (id, name, type, color, description, short_info, attributes, aliases, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     type = EXCLUDED.type,
                     color = COALESCE(EXCLUDED.color, entity_master.color),
                     description = COALESCE(EXCLUDED.description, entity_master.description),
+                    short_info = COALESCE(EXCLUDED.short_info, entity_master.short_info),
                     attributes = EXCLUDED.attributes,
                     aliases = EXCLUDED.aliases,
                     updated_at = CURRENT_TIMESTAMP
-            """, (entity_id, name, entity_type, color, description, json.dumps(attributes or {}), json.dumps(aliases or [])))
+            """, (entity_id, name, entity_type, color, description, short_info, json.dumps(attributes or {}), json.dumps(aliases or [])))
             conn.commit()
         finally:
             self._release_connection(conn)
@@ -376,7 +378,7 @@ class DatabaseManager:
         try:
             cursor = self._get_cursor(conn)
             
-            cursor.execute("SELECT id, name as label, type, color, description, attributes, aliases FROM entity_master")
+            cursor.execute("SELECT id, name as label, type, color, description, short_info, attributes, aliases FROM entity_master")
             nodes = []
             for row in cursor.fetchall():
                 node = dict(row)

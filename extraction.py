@@ -148,7 +148,27 @@ OUTPUT:
     ]
 }}
 
-}}
+### 3.1 JSON SCHEMA (Entities)
+```json
+    {
+      "temp_id": "unique_id_for_this_extraction",
+      "entity_type": "LegalEntity",
+      "canonical_name": "Entity Name",
+      "aliases": ["Alias 1", "Alias 2"],
+      "attributes": { "key": "value" },
+      "description": "Full detailed description.",
+      "short_info": "2-3 word high-level essence (e.g. 'Global Tech Giant' or 'Key Manufacturer')",
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "text": "verbatim quote from source",
+          "start_offset": 0,
+          "end_offset": 0,
+          "page_number": 1
+        }
+      ]
+    }
+```
 
 ### 4. FINAL INSTRUCTION
 Process the text below.
