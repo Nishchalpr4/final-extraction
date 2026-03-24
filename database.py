@@ -99,6 +99,9 @@ class DatabaseManager:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # 1b. Migrations (Ensure new columns exist on established production tables)
+            cursor.execute("ALTER TABLE entity_master ADD COLUMN IF NOT EXISTS short_info TEXT;")
 
             # 2. Relation Master
             cursor.execute("""
