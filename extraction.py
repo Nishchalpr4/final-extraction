@@ -151,9 +151,24 @@ OUTPUT:
 }}
 
 ### 4. FINAL INSTRUCTION
-Process the text below. Ensure zero orphans. Ensure every node has a relationship path tracing back to the Tier 0 ROOT.
+Process the text below.
+OUTPUT ONLY THE JSON OBJECT. DO NOT INCLUDE ANY MARKDOWN FENCES (```json), PREAMBLE, OR POST-TEXT. 
+THE OUTPUT MUST START WITH '{' AND END WITH '}'.
+Ensure zero orphans. Ensure every node has a relationship path tracing back to the Tier 0 ROOT.
 """
 
+
+
+def _extract_json_block(text: str) -> str:
+    """Finds the first '{' and last '}' to isolate a JSON object from surrounding text."""
+    try:
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            return text[start:end+1]
+    except Exception:
+        pass
+    return text
 
 
 async def call_llm(text: str, document_name: str = "User Input", section_ref: str = "chunk", metadata: dict = {}, custom_prompt: str = None) -> ExtractionPayload:
@@ -208,28 +223,25 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
         print(f"[ERROR] LLM API failed: {e}.")
         raise Exception(f"API Rate Limit or Connection Error. Please wait a few minutes and try again. Details: {e}")
     
-    # Strip fences
-    if "```json" in content:
-        content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content:
-        content = content.split("```")[1].split("```")[0].strip()
+    # Strip fences or isolate JSON block
+    content = _extract_json_block(content).strip()
     
     # Parse JSON - DEFENSIVE
-    content = content.strip()
     if not content:
-        print(f"[ERROR] LLM returned empty content. Finish reason: {finish_reason}")
-        parsed = {"entities": [], "relations": [], "abstentions": ["LLM returned empty response"]}
+        print(f"[ERROR] LLM returned empty or non-JSON content. Finish reason: {finish_reason}")
+        parsed = {"entities": [], "relations": [], "abstentions": ["LLM returned empty or non-JSON response"]}
     else:
         # First attempt: simple parse
         parsed = safe_json_loads(content)
         
         if parsed is None:
-            # Second attempt: repair and parse
+            # Second attempt: repair and parse (only if it looks like JSON)
             print(f"[DEBUG] Initial JSON parse failed. Attempting repair. Content starts with: {content[:100]}...")
             parsed = _repair_truncated_json(content)
             
         if not parsed:
             # Final fallback
+            print(f"[ERROR] All JSON parsing attempts failed for content: {content[:200]}...")
             parsed = {"entities": [], "relations": [], "abstentions": ["FAILED_TO_PARSE_JSON"]}
 
     # Load dynamic ontology for validation
