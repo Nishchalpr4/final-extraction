@@ -1,8 +1,29 @@
+import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from models import ExtractionPayload, EntityCandidate, RelationCandidate
 
 logger = logging.getLogger(__name__)
+
+def safe_json_loads(data: Any, default: Any = None) -> Any:
+    """
+    Safely load a JSON string. 
+    If data is already a dict/list, return it.
+    If data is an empty string or None, return the default.
+    If parsing fails, log the error and return the default.
+    """
+    if data is None:
+        return default
+    if isinstance(data, (dict, list)):
+        return data
+    if not isinstance(data, str) or not data.strip():
+        return default
+        
+    try:
+        return json.loads(data)
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning(f"Failed to parse JSON: {e}. Data starts with: {str(data)[:100]}")
+        return default
 
 class LogicGuard:
     def __init__(self, ontology: Dict[str, Any]):

@@ -11,6 +11,7 @@ from models import (
     QuantMetric,
     EvidenceRef,
 )
+from validators import safe_json_loads
 
 # ────────────────────────────────────────────────────────────────────────
 # ID GENERATION — deterministic, human-readable canonical IDs
@@ -90,7 +91,7 @@ class GraphStore:
             for row in cursor.fetchall():
                 entity_id = row['id']
                 self._alias_index[self._normalize_name(row['name'])] = entity_id
-                aliases = json.loads(row['aliases'])
+                aliases = safe_json_loads(row['aliases'], default=[])
                 for alias in aliases:
                     self._alias_index[self._normalize_name(alias)] = entity_id
         finally:

@@ -16,6 +16,7 @@ from models import (
     ExtractionPayload, EntityCandidate, RelationCandidate,
     EvidenceRef, ZONE1_ONTOLOGY_VERSION,
 )
+from validators import safe_json_loads
 
 def _get_llm_config():
     """LLM CONFIG: Loads credentials and model settings from .env."""
@@ -58,7 +59,7 @@ def _repair_truncated_json(raw: str) -> dict:
     text += '}' * max(0, open_braces)
 
     try:
-        return json.loads(text)
+        return safe_json_loads(text, default={})
     except Exception as e:
         print("\n[ERROR] Failed to parse LLM JSON output:")
         print(text)
@@ -194,9 +195,15 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(endpoint, headers=headers, json=body)
             response.raise_for_status()
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
-        finish_reason = result["choices"][0].get("finish_reason", "stop")
+            
+        try:
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
+            finish_reason = result["choices"][0].get("finish_reason", "stop")
+        except (json.JSONDecodeError, KeyError, IndexError) as e:
+            print(f"[ERROR] Failed to parse LLM response JSON or structure: {e}")
+            print(f"[DEBUG] Raw response: {response.text[:500]}...")
+            raise Exception(f"Invalid response from LLM API. Details: {e}")
     except Exception as e:
         print(f"[ERROR] LLM API failed: {e}.")
         raise Exception(f"API Rate Limit or Connection Error. Please wait a few minutes and try again. Details: {e}")
@@ -208,17 +215,22 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
         content = content.split("```")[1].split("```")[0].strip()
     
     # Parse JSON - DEFENSIVE
-    if not content or not content.strip():
+    content = content.strip()
+    if not content:
         print(f"[ERROR] LLM returned empty content. Finish reason: {finish_reason}")
         parsed = {"entities": [], "relations": [], "abstentions": ["LLM returned empty response"]}
     else:
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            print(f"[DEBUG] JSON Decode Error. Content starts with: {content[:100]}...")
+        # First attempt: simple parse
+        parsed = safe_json_loads(content)
+        
+        if parsed is None:
+            # Second attempt: repair and parse
+            print(f"[DEBUG] Initial JSON parse failed. Attempting repair. Content starts with: {content[:100]}...")
             parsed = _repair_truncated_json(content)
-            if not parsed:
-                parsed = {"entities": [], "relations": [], "abstentions": ["FAILED_TO_PARSE_JSON"]}
+            
+        if not parsed:
+            # Final fallback
+            parsed = {"entities": [], "relations": [], "abstentions": ["FAILED_TO_PARSE_JSON"]}
 
     # Load dynamic ontology for validation
     ontology = db.get_ontology()

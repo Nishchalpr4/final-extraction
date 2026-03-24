@@ -28,7 +28,7 @@ class EvidenceRef(BaseModel):
     document_id: str = "doc_1"
     document_name: str = "Unknown"
     section_ref: str = "chunk"
-    evidence_quote: str
+    evidence_quote: str = "No quote provided."
     as_of_date: Optional[str] = None
 
 class EntityCandidate(BaseModel):

@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from validators import safe_json_loads
 
 # Load environment variables
 load_dotenv()
@@ -231,7 +232,7 @@ class DatabaseManager:
             cursor = self._get_cursor(conn)
             cursor.execute("SELECT key, data FROM ontology_rules")
             rows = cursor.fetchall()
-            return {row['key']: json.loads(row['data']) for row in rows}
+            return {row['key']: safe_json_loads(row['data'], default=[]) if row['key'] != 'entity_colors' else safe_json_loads(row['data'], default={}) for row in rows}
         finally:
             self._release_connection(conn)
 
@@ -249,7 +250,7 @@ class DatabaseManager:
                 cursor.execute("SELECT data FROM ontology_rules WHERE key = %s", (key,))
                 row = cursor.fetchone()
                 if row:
-                    current_data = json.loads(row['data'])
+                    current_data = safe_json_loads(row['data'], default=[] if isinstance(data, list) else {})
                     if isinstance(current_data, list) and isinstance(data, list):
                         # Merge lists, unique entries only (handle non-hashable dicts)
                         if any(isinstance(x, dict) for x in current_data + data):
@@ -379,8 +380,8 @@ class DatabaseManager:
             nodes = []
             for row in cursor.fetchall():
                 node = dict(row)
-                node['attributes'] = json.loads(node['attributes'])
-                node['aliases'] = json.loads(node['aliases'])
+                node['attributes'] = safe_json_loads(node['attributes'], default={})
+                node['aliases'] = safe_json_loads(node['aliases'], default=[])
                 
                 # Fetch recent evidence
                 cursor.execute("""
@@ -413,7 +414,7 @@ class DatabaseManager:
             links = []
             for row in cursor.fetchall():
                 link = dict(row)
-                link['attributes'] = json.loads(link['attributes']) if link.get('attributes') else {}
+                link['attributes'] = safe_json_loads(link.get('attributes'), default={})
                 cursor.execute("""
                     SELECT status, confidence, source_text, document_name, section_ref 
                     FROM assertions 
