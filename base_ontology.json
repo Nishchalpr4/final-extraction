@@ -139,31 +139,45 @@
     },
     "extraction_rules": [
         "STRICT TAXONOMY: Every entity MUST have a path to the TIER 0 ROOT LegalEntity.",
-        "NESTING RULE: Products (iPhone, Mac) MUST NOT connect directly to the Root if a ProductDomain (consumer electronics) or BusinessUnit (Services) exists. Nest them inside.",
-        "BRIDGE NODES: If related products are mentioned but no explicit group name is given, use or CREATE a logical bridge node like 'ProductPortfolio' or 'Digital Products' to group them.",
-        "SPINE LINKS: Use HAS_PRODUCT_DOMAIN -> INCLUDES -> ProductLine or HAS_SERVICE_PORTFOLIO -> HAS_PRODUCTS -> ProductLine.",
+        "DOMAIN EXTRACTION: If the text mentions a broad category (e.g. 'consumer electronics', 'luxury goods', 'athletic footwear'), YOU MUST extract it as a ProductDomain entity.",
+        "SERVICE PORTFOLIO: Services (iCloud, Apple Music, Subscriptions) MUST be grouped under a 'Service Portfolio' bridge node.",
+        "REVENUE EXTRACTION: If an entity is noted for generating revenue (e.g., 'revenue from iPhone'), YOU MUST create a 'Revenue' entity (type Financial) and connect the product to it via HAS_FINANCIALS.",
+        "STRATEGY EXTRACTION: Themes like 'design focus' or 'user experience' MUST be extracted as Strategy or Capability entities and connected to the Root via HAS_STRATEGY.",
+        "NESTING RULE: Products (iPhone, Mac) MUST NOT connect directly to the Root if a ProductDomain or ProductFamily exists. Nest them inside.",
+        "BRIDGE NODES: If related products are mentioned but no explicit group name is given, use or CREATE a logical bridge node like 'ProductPortfolio' to group them.",
+        "SPINE LINKS: Root -> HAS_PRODUCT_DOMAIN -> Domain -> INCLUDES -> Family -> HAS_PRODUCT_LINE -> Line.",
         "NO ORPHANS: Every node MUST lead back to the ROOT. Prioritize the taxonomic chain over associative links.",
         "EVIDENCE: Every relation MUST have verbatim source_text quote."
     ],
     "extraction_examples": [
       {
-        "input": "Apple Inc. sells iPhones and Macs. It also provides iCloud and Apple Music services.",
-        "thought_process": "Created Apple Inc as Root. Created 'Consumer Electronics' domain. Grouped iPhone/Mac under 'Digital Products' bridge node inside the domain. Grouped iCloud/Music under 'Services' bridge node.",
+        "input": "Apple Inc. designs and sells consumer electronics like the iPhone and Mac. It is known for its strong focus on design and user experience. Apple Inc. generates a significant portion of its revenue from iPhone sales. Services like iCloud and Apple Music are growing rapidly.",
+        "thought_process": "Created Apple Inc as Root. Created 'Consumer Electronics' domain. Grouped iPhone/Mac under 'Digital Products' portfolio. Grouped iCloud/Music under 'Service Portfolio'. Extracted 'Design Focus' and 'User Experience' as Strategy. Linked iPhone to 'Significant Revenue'.",
         "output_json": {
           "entities": [
-            { "temp_id": "e1", "canonical_name": "Apple Inc.", "entity_type": "LegalEntity" },
-            { "temp_id": "e_dom", "canonical_name": "Consumer Electronics", "entity_type": "ProductDomain" },
-            { "temp_id": "e_bridge1", "canonical_name": "Digital Products", "entity_type": "ProductPortfolio" },
-            { "temp_id": "e2", "canonical_name": "iPhone", "entity_type": "ProductLine" },
-            { "temp_id": "e_svc", "canonical_name": "Services", "entity_type": "BusinessUnit" },
-            { "temp_id": "e3", "canonical_name": "iCloud", "entity_type": "ProductLine" }
+            { "temp_id": "e1", "canonical_name": "Apple Inc.", "entity_type": "LegalEntity", "short_info": "Technology leader globally." },
+            { "temp_id": "e_dom", "canonical_name": "Consumer Electronics", "entity_type": "ProductDomain", "short_info": "Broad electronics sector." },
+            { "temp_id": "e_bridge1", "canonical_name": "Digital Products", "entity_type": "ProductPortfolio", "short_info": "Hardware device collection." },
+            { "temp_id": "e2", "canonical_name": "iPhone", "entity_type": "ProductLine", "short_info": "Smartphone line." },
+            { "temp_id": "e3", "canonical_name": "Mac", "entity_type": "ProductLine", "short_info": "Computer line." },
+            { "temp_id": "e_svc", "canonical_name": "Service Portfolio", "entity_type": "ServicePortfolio", "short_info": "Cloud and media services." },
+            { "temp_id": "e4", "canonical_name": "iCloud", "entity_type": "ProductLine", "short_info": "Cloud storage service." },
+            { "temp_id": "e5", "canonical_name": "Apple Music", "entity_type": "ProductLine", "short_info": "Streaming service." },
+            { "temp_id": "e6", "canonical_name": "Design Focus", "entity_type": "Strategy", "short_info": "Core design philosophy." },
+            { "temp_id": "e7", "canonical_name": "User Experience", "entity_type": "Strategy", "short_info": "Priority on usability." },
+            { "temp_id": "e8", "canonical_name": "Significant Revenue", "entity_type": "Financial", "short_info": "Primary income source." }
           ],
           "relations": [
-            { "source_temp_id": "e1", "relation_type": "HAS_PRODUCT_DOMAIN", "target_temp_id": "e_dom" },
-            { "source_temp_id": "e_dom", "relation_type": "INCLUDES", "target_temp_id": "e_bridge1" },
-            { "source_temp_id": "e_bridge1", "relation_type": "HAS_PRODUCTS", "target_temp_id": "e2" },
-            { "source_temp_id": "e1", "relation_type": "HAS_BUSINESS_UNIT", "target_temp_id": "e_svc" },
-            { "source_temp_id": "e_svc", "relation_type": "HAS_PRODUCTS", "target_temp_id": "e3" }
+            { "source_temp_id": "e1", "relation_type": "HAS_PRODUCT_DOMAIN", "target_temp_id": "e_dom", "source_text": "Apple Inc. designs and sells consumer electronics like the iPhone and Mac." },
+            { "source_temp_id": "e_dom", "relation_type": "INCLUDES", "target_temp_id": "e_bridge1", "source_text": "designs and sells consumer electronics like the iPhone and Mac." },
+            { "source_temp_id": "e_bridge1", "relation_type": "HAS_PRODUCTS", "target_temp_id": "e2", "source_text": "iPhone" },
+            { "source_temp_id": "e_bridge1", "relation_type": "HAS_PRODUCTS", "target_temp_id": "e3", "source_text": "Mac" },
+            { "source_temp_id": "e1", "relation_type": "HAS_SERVICE_PORTFOLIO", "target_temp_id": "e_svc", "source_text": "Services like iCloud and Apple Music" },
+            { "source_temp_id": "e_svc", "relation_type": "INCLUDES", "target_temp_id": "e4", "source_text": "iCloud" },
+            { "source_temp_id": "e_svc", "relation_type": "INCLUDES", "target_temp_id": "e5", "source_text": "Apple Music" },
+            { "source_temp_id": "e1", "relation_type": "HAS_STRATEGY", "target_temp_id": "e6", "source_text": "strong focus on design" },
+            { "source_temp_id": "e1", "relation_type": "HAS_STRATEGY", "target_temp_id": "e7", "source_text": "user experience" },
+            { "source_temp_id": "e2", "relation_type": "HAS_FINANCIALS", "target_temp_id": "e8", "source_text": "revenue from iPhone sales" }
           ]
         }
       }
@@ -171,7 +185,7 @@
     "multi_stage_prompts": {
         "stage_1_entities": "### STAGE 1: ENTITY EXTRACTION (HIGH RECALL)\nExtract ALL entities. Include Companies, People, Products, Product Domains, and Business Units.\nALSO: If the text mentions management or competition, CREATE bridge nodes: 'Management' (e.g., 'Nike Management') and 'Competitor Network' (e.g., 'Nike Competitors').\n\nOutput format:\n[\n  { \"name\": \"...\", \"type\": \"...\", \"aliases\": [...], \"evidence\": \"...\" }\n]",
         "stage_2_resolution": "### STAGE 2: ENTITY RESOLUTION\nGroup entities referring to the same real-world entity. Assign unique entity_id (E1, E2, etc.).\nSTRICT: Ensure bridge nodes (ProductPortfolio, Management, CompetitorNetwork) are preserved.\n\nOutput format:\n[\n  { \"entity_id\": \"E1\", \"canonical_name\": \"...\", \"type\": \"...\", \"aliases\": [...] }\n]",
-        "stage_3_relations": "### STAGE 3: RELATION EXTRACTION (STRICT HIERARCHY)\nAssign relations using entity_ids. \nSTRICT: Minimal direct links to the ROOT Company. Use Bridge Nodes.\n\nSTRICT NESTING RULES:\n1. People (CEO, COO) MUST be connected to the 'Management' bridge node, NOT the Root Company.\n2. Products (iPhone, Mac) MUST be connected to a ProductDomain or ProductPortfolio bridge node, NOT the Root Company.\n3. Competitors (Adidas, Puma) MUST be connected to the 'Competitor Network' bridge node, NOT the Root Company.\n4. Hierarchy Path: Root Company -> HAS_MANAGEMENT -> Management -> HAS_MANAGEMENT -> Person.\n5. Hierarchy Path: Root Company -> HAS_COMPETITOR_NETWORK -> Competitor Network -> COMPETES_WITH -> LegalEntity (Competitor).\n6. Hierarchy Path: Root Company -> HAS_PRODUCT_DOMAIN -> ProductDomain -> INCLUDES -> ProductLine.\n\nEVIDENCE: EVERY relation MUST include a verbatim quote from the text in the 'evidence' field. NO NULLS.\n\nAllowed Relations: {relations}\n\nOutput format:\n[\n  { \"source_id\": \"E1\", \"relation\": \"...\", \"target_id\": \"E2\", \"evidence\": \"...\", \"confidence\": 0-1 }\n]",
+        "stage_3_relations": "### STAGE 3: RELATION EXTRACTION (STRICT HIERARCHY)\nAssign relations using entity_ids. \nSTRICT: Minimal direct links to the ROOT Company. Use Bridge Nodes.\n\nSTRICT NESTING RULES:\n1. People (CEO, COO) MUST be connected to the 'Management' bridge node, NOT the Root Company.\n2. Products (iPhone, Mac) MUST be connected to a ProductFamily or ProductPortfolio bridge node, NOT the Root Company or Domain directly.\n3. ProductFamily MUST be connected to a ProductDomain (if extracted), NOT the Root Company.\n4. Hierarchy Path: Root Company -> HAS_PRODUCT_DOMAIN -> ProductDomain -> INCLUDES -> ProductFamily -> HAS_PRODUCT_LINE -> ProductLine.\n5. Competitors (Adidas, Puma) MUST be connected to the 'Competitor Network' bridge node, NOT the Root Company.\n\nEVIDENCE: EVERY relation MUST include a verbatim quote from the text in the 'evidence' field. NO NULLS.\n\nAllowed Relations: {relations}\n\nOutput format:\n[\n  { \"source_id\": \"E1\", \"relation\": \"...\", \"target_id\": \"E2\", \"evidence\": \"...\", \"confidence\": 0-1 }\n]",
         "stage_4_facts": "### STAGE 4: ATTRIBUTE / FACT EXTRACTION\nExtract quantitative data for resolved entities.\nSTRICT: Skip if no number exists. DO NOT use '0' as placeholder.\n\nOutput format:\n[\n  { \"entity_id\": \"E1\", \"attribute\": \"...\", \"value\": \"...\", \"unit\": \"...\", \"time_context\": \"...\", \"evidence\": \"...\" }\n]"
     }
 }

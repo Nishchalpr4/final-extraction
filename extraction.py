@@ -110,7 +110,8 @@ def get_dynamic_prompt(text: str = "{text}") -> str:
         examples_str += "\n"
 
     return f"""### ROLE
-You are an Advanced Investment Analyst AI. Your task is to transform unstructured corporate text into a STICKER HIERARCHICAL KNOWLEDGE GRAPH. 
+You are an Advanced Investment Analyst AI. Your task is to transform unstructured corporate text into a **STRICT HIERARCHICAL KNOWLEDGE GRAPH**. 
+MANDATORY: You MUST extract broad categories (e.g., 'consumer electronics', 'athletic footwear') as **ProductDomain** entities.
 
 ### 1. ONTOLOGY (LABELS ONLY)
 - ENTITY TYPES: {entity_types}

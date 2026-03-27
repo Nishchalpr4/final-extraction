@@ -37,327 +37,162 @@ class LogicGuard:
 
     def refine_payload(self, payload: ExtractionPayload) -> ExtractionPayload:
         """
-        PLATINUM STANDARD HEALER:
-        1. Inverts Geography -> PRODUCES -> Product to Product -> MANUFACTURED_IN -> Geography.
-        2. Deeply nests all products/brands under Product Portfolio.
-        3. Prunes head-node clutter and adopts orphans.
+        PLATINUM STANDARD HEALER (v2):
+        1. Identifies Global Root (LegalEntity).
+        2. Normalizes Multi-Portfolio Hierarchy (Domain > Portfolios > Lines).
+        3. Supports Products vs Services segregation.
+        4. Protects Strategy & Financial nodes from pruning.
+        5. Forces 100% Root-to-Leaf connectivity using BFS.
         """
-        entity_map = {e.temp_id: e for e in payload.entities}
         def norm(t): return str(t).lower().replace(" ", "").replace("_", "")
         
-        # 1. Identify Root (Prioritize Nike or the most descriptive corporate name)
-        root = next((e for e in payload.entities if "nike" in e.canonical_name.lower() and norm(e.entity_type) in ["legalentity", "company"]), None)
-        if not root:
-            root = next((e for e in payload.entities if norm(e.entity_type) in ["legalentity", "company"]), None)
+        # --- PHASE 0: Pre-processing ---
+        entity_map = {str(e.temp_id): e for e in payload.entities}
+        
+        # 1. Identify Root
+        root = next((e for e in payload.entities if norm(e.entity_type) in ["legalentity", "company"]), None)
         if not root and payload.entities: root = payload.entities[0]
         if not root: return payload
+        root_id = str(root.temp_id)
 
-        logger.info(f"LogicGuard: Centering hierarchy around root node: {root.canonical_name} ({root.temp_id})")
+        # --- PHASE 1: Taxonomy Anchoring (The Spine) ---
+        pl_types = {"productline", "product", "item", "brand", "digitalproduct"}
+        ps_types = {"service", "subscription"} 
+        pf_types = {"productfamily", "productportfolio", "businessunit"}
+        sf_types = {"serviceportfolio"}
+        pd_types = {"productdomain", "industry", "subindustry"}
+        non_tax_types = {"person", "legalentity", "location", "facility", "competitor", "strategy", "capability", "financial", "financialreport"}
 
-        # 2. Bridge Nodes Discovery/Creation
-        bridges = {} 
-        for e in payload.entities:
-            ename, etype = str(e.canonical_name).lower(), norm(e.entity_type)
-            # Semantic Bridge Matching
-            if "management" in ename: bridges["management"] = e.temp_id
-            elif "competitor" in ename: bridges["competitornetwork"] = e.temp_id
-            elif any(x in ename for x in ["service", "subscription"]) and etype in ["subindustry", "industry", "businessunit", "productdomain", "serviceportfolio"]:
-                bridges["serviceportfolio"] = e.temp_id
-            elif any(x in ename for x in ["product", "electronic", "portfolio"]) and etype in ["industry", "subindustry", "productdomain", "productportfolio"]:
-                bridges["productportfolio"] = e.temp_id
-            elif any(x in ename for x in ["manufactur", "network", "supply"]):
-                bridges["manufacturingnetwork"] = e.temp_id
-
-        needed = {
-            "management": ("Management", f"{root.canonical_name} Management", "HAS_MANAGEMENT"),
-            "competitornetwork": ("CompetitorNetwork", "Competitor Network", "HAS_COMPETITOR_NETWORK"),
-            "productportfolio": ("ProductPortfolio", "Product Portfolio", "HAS_PRODUCTS"),
-            "manufacturingnetwork": ("ManufacturingNetwork", "Manufacturing Network", "HAS_NETWORK"),
-            "serviceportfolio": ("ServicePortfolio", "Service Portfolio", "HAS_SERVICE_PORTFOLIO")
-        }
-
-        relevance = {
-            "management": any(norm(e.entity_type) == "person" for e in payload.entities),
-            "competitornetwork": any(norm(e.entity_type) == "legalentity" and e.temp_id != root.temp_id for e in payload.entities),
-            "productportfolio": any(norm(e.entity_type) in ["productline", "product", "brand", "productfamily", "productdomain"] for e in payload.entities),
-            "manufacturingnetwork": any(norm(e.entity_type) == "geography" and e.temp_id != root.temp_id for e in payload.entities),
-            "serviceportfolio": any(norm(e.entity_type) in ["service", "serviceportfolio", "digitalproduct"] or any(x in str(e.canonical_name).lower() for x in ["icloud", "apple music", "subscription"]) for e in payload.entities)
-        }
-
-        for btype, (etype, name, rel) in needed.items():
-            if relevance[btype] and btype not in bridges:
-                bid = f"bridge_{btype}_001"
-                payload.entities.append(EntityCandidate(temp_id=bid, canonical_name=name, entity_type=etype, short_info=f"Auto-generated {etype} container"))
-                payload.relations.append(RelationCandidate(source_temp_id=root.temp_id, target_temp_id=bid, relation_type=rel))
-                bridges[btype] = bid
-                entity_map[bid] = payload.entities[-1]
-
-        # 3. Relation Refining & Inversion
-        new_relations = []
-        for rel in payload.relations:
-            src, tgt = entity_map.get(str(rel.source_temp_id)), entity_map.get(str(rel.target_temp_id))
-            if not src or not tgt: continue
-            
-            stype, ttype = norm(src.entity_type), norm(tgt.entity_type)
-
-            # INVERSION RULE: Geography/Site PRODUCES Product -> Product MANUFACTURED_IN Geography/Site
-            if stype in ["geography", "site", "businessunit"] and ttype in ["productline", "product", "brand"] and rel.relation_type == "PRODUCES":
-                rel.source_temp_id, rel.target_temp_id = tgt.temp_id, src.temp_id
-                rel.relation_type = "MANUFACTURED_IN"
-            
-            # Re-route direct root links
-            if src.temp_id == root.temp_id:
-                # Decide if this should go through a bridge
-                target_bridge = None
-                if ttype == "person": target_bridge = bridges.get("management")
-                elif ttype in ["productline", "product", "brand", "service", "productfamily", "productdomain", "digitalproduct"]: 
-                    n = str(tgt.canonical_name).lower()
-                    if any(x in n for x in ["service", "music", "cloud", "icloud"]):
-                        target_bridge = bridges.get("serviceportfolio")
-                    else:
-                        target_bridge = bridges.get("productportfolio")
-                elif ttype == "geography" and tgt.temp_id != root.temp_id: target_bridge = bridges.get("manufacturingnetwork")
-                elif ttype == "legalentity" and "competitor" in str(tgt.short_info).lower(): target_bridge = bridges.get("competitornetwork")
-                
-                if target_bridge and target_bridge != tgt.temp_id:
-                    rel.source_temp_id = target_bridge
-                    rel.relation_type = "INCLUDES"
-
-            new_relations.append(rel)
-
-        # 4. Deep Portfolio Nesting (Ensure every product is under portfolio)
-        port_id = bridges.get("productportfolio")
-        if port_id:
-            has_portfolio_link = set()
-            for r in new_relations:
-                if str(r.source_temp_id) == str(port_id): has_portfolio_link.add(str(r.target_temp_id))
-            
-            for e in payload.entities:
-                ename = str(e.canonical_name).lower()
-                etype = norm(e.entity_type)
-                if etype in ["productline", "product", "brand", "service", "productfamily", "productdomain", "digitalproduct", "item"] and e.temp_id not in bridges.values():
-                    # Decide which portfolio
-                    target_bid = bridges.get("productportfolio")
-                    if any(x in ename for x in ["service", "music", "cloud", "icloud"]):
-                        target_bid = bridges.get("serviceportfolio") or target_bid
-                    
-                    if target_bid and str(e.temp_id) not in has_portfolio_link and str(e.temp_id) != str(target_bid):
-                        new_relations.append(RelationCandidate(
-                            source_temp_id=target_bid, 
-                            target_temp_id=e.temp_id, 
-                            relation_type="INCLUDES"
-                        ))
-
-        # 5. Aggressive Re-Parenting & Adoption
-        has_bridge_incoming = set()
-        for r in new_relations:
-            if str(r.source_temp_id) in bridges.values():
-                has_bridge_incoming.add(str(r.target_temp_id))
-
-        for e in payload.entities:
-            eid = str(e.temp_id)
-            if eid == str(root.temp_id) or eid in bridges.values(): continue
-            
-            # If not yet bridged, force it
-            if eid not in has_bridge_incoming:
-                etype = norm(e.entity_type)
-                bid = None
-                print(f"DEBUG: LogicGuard Re-Parenting Check: {e.canonical_name} type={etype}")
-                if etype == "person": bid = bridges.get("management")
-                elif etype in ["productline", "product", "brand", "service", "productfamily", "productdomain", "digitalproduct"]: 
-                    n = e.canonical_name.lower()
-                    if any(x in n for x in ["service", "music", "cloud", "icloud"]):
-                        bid = bridges.get("serviceportfolio")
-                    else:
-                        bid = bridges.get("productportfolio")
-                elif etype == "geography": bid = bridges.get("manufacturingnetwork")
-                elif etype == "legalentity" and eid != str(root.temp_id): bid = bridges.get("competitornetwork")
-                elif etype in ["service", "serviceportfolio"]: bid = bridges.get("serviceportfolio")
-                
-                if bid:
-                    print(f"  -> FORCING {e.canonical_name} into {bid}")
-                    # PLATINUM GROUNDING: Inherit source_text from any existing relation to this node
-                    existing_evidence = ""
-                    for rel in payload.relations:
-                        if str(rel.target_temp_id) == eid and rel.source_text:
-                            existing_evidence = rel.source_text
-                            break
-                            
-                    new_relations.append(RelationCandidate(
-                        source_temp_id=bid,
-                        target_temp_id=e.temp_id,
-                        relation_type="INCLUDES",
-                        source_text=existing_evidence
-                    ))
-                    has_bridge_incoming.add(eid)
-
-        # 6. Final Catch-All / Orphan Adoption
-        # Ensure EVERY node has at least one incoming link (except root)
-        final_rels = []
-        seen = set()
-        has_any_incoming = set()
-
-        # Phase A: Collect all valid relations and determine which nodes have incoming links
-        temp_final = []
-        bridge_ids = set(bridges.values())
-        for r in new_relations:
-            src_id, tgt_id = str(r.source_temp_id), str(r.target_temp_id)
-            if src_id == tgt_id: continue
-            
-            # Pruning Rule: Remove link from root if target has a bridge parent
-            if src_id == str(root.temp_id) and tgt_id in has_bridge_incoming and tgt_id not in bridge_ids:
-                continue
-            
-            temp_final.append(r)
-            has_any_incoming.add(tgt_id)
-
-        # Phase B: Adopt any node that is still an orphan or a floating category
-        for e in payload.entities:
-            eid = str(e.temp_id)
-            if eid == str(root.temp_id) or eid in has_any_incoming:
-                continue
-            
-            # Special case: If this is a Category (Industry/Domain/Bridge), it MUST connect to root
-            # Connect to root as fallback
-            temp_final.append(RelationCandidate(
-                source_temp_id=root.temp_id,
-                target_temp_id=e.temp_id,
-                relation_type="ASSOCIATED_WITH" if norm(e.entity_type) not in ["industry", "subindustry", "productdomain", "management", "serviceportfolio", "productportfolio"] else "INCLUDES"
+        # 1. Identify existing or required taxonomic anchors
+        all_families = [e for e in payload.entities if norm(e.entity_type) in pf_types]
+        all_domains = [e for e in payload.entities if norm(e.entity_type) in pd_types]
+        service_fams = [e for e in payload.entities if norm(e.entity_type) in sf_types]
+        
+        # Ensure Domain exists
+        if not all_domains:
+            primary_dom_id = "bridge_taxonomic_domain"
+            payload.entities.append(EntityCandidate(
+                temp_id=primary_dom_id, canonical_name="Core Operations", 
+                entity_type="ProductDomain", short_info="Primary industry sector."
             ))
+            entity_map[primary_dom_id] = payload.entities[-1]
+        else:
+            primary_dom_id = str(all_domains[0].temp_id)
 
-        # Phase C: Final unique check
-        for r in temp_final:
-            key = (str(r.source_temp_id), str(r.target_temp_id), str(r.relation_type))
-            if key not in seen:
-                final_rels.append(r)
-                seen.add(key)
+        # Ensure Product Family exists
+        if not all_families:
+            primary_fam_id = "bridge_taxonomic_family"
+            payload.entities.append(EntityCandidate(
+                temp_id=primary_fam_id, canonical_name="Product Portfolio", 
+                entity_type="ProductPortfolio", short_info="Core portfolio of products."
+            ))
+            entity_map[primary_fam_id] = payload.entities[-1]
+        else:
+            primary_fam_id = str(all_families[0].temp_id)
 
-        # ════════════════════════════════════════════════════════════════════════
-        # PHASE F: BFS-Based Strict Tree Enforcement (Platinum Guard)
-        # ════════════════════════════════════════════════════════════════════════
+        # Ensure Service Family exists if services are present
+        has_services = any(norm(e.entity_type) in ps_types or any(x in str(e.canonical_name).lower() for x in ["icloud", "music", "cloud", "service"]) for e in payload.entities)
+        if has_services and not service_fams:
+            service_fam_id = "bridge_service_portfolio"
+            payload.entities.append(EntityCandidate(
+                temp_id=service_fam_id, canonical_name="Service Portfolio", 
+                entity_type="ServicePortfolio", short_info="Portfolio of digital services."
+            ))
+            entity_map[service_fam_id] = payload.entities[-1]
+        elif service_fams:
+            service_fam_id = str(service_fams[0].temp_id)
+        else:
+            service_fam_id = None
+
+        # --- PHASE 2: Relation Re-anchoring ---
+        final_rels = []
+        # We start with ALL relations that are NOT purely taxonomic (we'll rebuild the spine)
+        tax_rel_types = {"HAS_PRODUCT_DOMAIN", "HAS_FAMILY", "HAS_PRODUCT_FAMILY", "HAS_SERVICE_PORTFOLIO", "INCLUDES", "HAS_PRODUCTS"}
+        
+        for r in payload.relations:
+            src_id, tgt_id = str(r.source_temp_id), str(r.target_temp_id)
+            if src_id not in entity_map or tgt_id not in entity_map: continue
+            
+            tgt_ent = entity_map[tgt_id]
+            tgt_type = norm(tgt_ent.entity_type)
+            tgt_name = str(tgt_ent.canonical_name).lower()
+
+            # If it's a Line/Service, force move it to the right family
+            if tgt_type in pl_types or tgt_type in ps_types:
+                if service_fam_id and (tgt_type in ps_types or any(x in tgt_name for x in ["icloud", "music", "cloud", "service"])):
+                    r.source_temp_id = service_fam_id
+                else:
+                    r.source_temp_id = primary_fam_id
+                r.relation_type = "INCLUDES"
+            
+            # If it's a family being linked to root, move it to domain
+            elif tgt_type in pf_types and src_id == root_id and tgt_id != primary_fam_id:
+                r.source_temp_id = primary_dom_id
+                r.relation_type = "HAS_FAMILY"
+            
+            # Filter out existing spine relations to avoid duplicates before we add our own
+            if r.relation_type in tax_rel_types and tgt_id in [primary_dom_id, primary_fam_id, service_fam_id]:
+                continue
+                
+            final_rels.append(r)
+
+        # Add the Hard Spine
+        # Root -> Domain
+        final_rels.append(RelationCandidate(source_temp_id=root_id, target_temp_id=primary_dom_id, relation_type="HAS_PRODUCT_DOMAIN"))
+        # Domain -> Family
+        final_rels.append(RelationCandidate(source_temp_id=primary_dom_id, target_temp_id=primary_fam_id, relation_type="HAS_FAMILY"))
+        # Root -> Service Portfolio
+        if service_fam_id:
+            final_rels.append(RelationCandidate(source_temp_id=root_id, target_temp_id=service_fam_id, relation_type="HAS_SERVICE_PORTFOLIO"))
+
+        # --- PHASE 3: Connectivity & Pruning ---
+        keep_ids = {root_id, primary_dom_id, primary_fam_id}
+        if service_fam_id: keep_ids.add(service_fam_id)
+        
+        # Allowed entities are root, spine, lines, and non-taxonomic (Strategy, Financial, etc.)
+        allowed_entities = []
+        for e in payload.entities:
+            eid = str(e.temp_id)
+            etype = norm(e.entity_type)
+            if eid in keep_ids or etype in pl_types or etype in ps_types or etype in non_tax_types:
+                allowed_entities.append(e)
+            else:
+                logger.info(f"Purging redundant node: {e.canonical_name} ({e.entity_type})")
+        
+        payload.entities = allowed_entities
+        allowed_ids = {str(e.temp_id) for e in payload.entities}
+
+        # BFS for strict connectivity
         tree_rels = []
-        visited = {str(root.temp_id)}
-        queue = [str(root.temp_id)]
+        visited = {root_id}
+        queue = [root_id]
+        
+        # Filter rels to only include allowed IDs
+        final_rels = [r for r in final_rels if str(r.source_temp_id) in allowed_ids and str(r.target_temp_id) in allowed_ids]
         
         while queue:
-            current_pid = queue.pop(0)
-            # Find all potential children of this parent
+            curr = queue.pop(0)
             for r in final_rels:
-                if str(r.source_temp_id) == current_pid:
-                    tgt = str(r.target_temp_id)
-                    if tgt not in visited:
+                if str(r.source_temp_id) == curr:
+                    tid = str(r.target_temp_id)
+                    if tid not in visited:
                         tree_rels.append(r)
-                        visited.add(tgt)
-                        queue.append(tgt)
-                    else:
-                        logger.info(f"Skipping cycle/redundant link to {tgt}")
-                        
-        # Final safety: If any nodes were missed, link them to root
-        all_eids = {str(e.temp_id) for e in payload.entities}
-        missed = all_eids - visited
-        for eid in missed:
-            if eid == str(root.temp_id): continue
-            logger.info(f"Adopting lone node into root: {eid}")
-            tree_rels.append(RelationCandidate(
-                source_temp_id=root.temp_id,
-                target_temp_id=eid,
-                relation_type="ASSOCIATED_WITH"
-            ))
-
-        payload.relations = tree_rels
-
-        # ════════════════════════════════════════════════════════════════════════
-        # PHASE G: Product Hierarchy Normalization (Domain > Family > Line)
-        # ════════════════════════════════════════════════════════════════════════
-        pl_types = {"productline", "product", "item", "brand", "service", "digitalproduct"}
-        pf_types = {"productfamily", "productportfolio", "businessunit"}
-        pd_types = {"productdomain", "industry", "subindustry"}
-
-        families = {str(e.temp_id) for e in payload.entities if norm(e.entity_type) in pf_types or "group" in str(e.canonical_name).lower() or "portfolio" in str(e.canonical_name).lower()}
-        domains = {str(e.temp_id) for e in payload.entities if norm(e.entity_type) in pd_types}
+                        visited.add(tid)
+                        queue.append(tid)
         
-        if families:
-            # Sort families to pick the most descriptive one if multiple
-            default_family = list(families)[0]
-            for r in payload.relations:
-                src_ent = entity_map.get(str(r.source_temp_id), root)
-                tgt_ent = entity_map.get(str(r.target_temp_id), root)
-                
-                src_type = norm(src_ent.entity_type)
-                tgt_type = norm(tgt_ent.entity_type)
-                
-                # TAXONOMIC FLIP: If Domain is a CHILD of Family/Portfolio, flip it
-                if src_type in pf_types and tgt_type in pd_types:
-                    logger.info(f"Taxonomic Flip: Swapping {src_ent.canonical_name} and {tgt_ent.canonical_name}")
-                    r.source_temp_id, r.target_temp_id = tgt_ent.temp_id, src_ent.temp_id
-                    r.relation_type = "HAS_PORTFOLIO"
-                    # Update local types for subsequent logic
-                    src_type, tgt_type = tgt_type, src_type
-
-                # If Domain/Portfolio -> Line/Product, and Family exists, re-route to Domain -> Family -> Line
-                if src_type in (pd_types | {"legalentity"}) and tgt_type in pl_types:
-                    if str(r.source_temp_id) != default_family:
-                        # Re-route to family
-                        r.source_temp_id = default_family
-                        r.relation_type = "INCLUDES"
-                    
-            # Ensure Domain -> Family link exists
-            for f in families:
-                has_domain_parent = any(str(r.target_temp_id) == f and norm(entity_map.get(str(r.source_temp_id), root).entity_type) in pd_types for r in payload.relations)
-                if not has_domain_parent and domains:
-                    payload.relations.append(RelationCandidate(
-                        source_temp_id=list(domains)[0],
-                        target_temp_id=f,
-                        relation_type="HAS_PRODUCT_FAMILY"
-                    ))
-
-        # Phase D: Prune Empty Auto-Bridges
-        # If an auto-bridge was created but has no children, and a better one exists, remove it.
-        has_outgoing = {str(r.source_temp_id) for r in payload.relations}
-        final_entities = []
+        # Orphan handling
         for e in payload.entities:
             eid = str(e.temp_id)
-            if eid.startswith("bridge_") and eid not in has_outgoing:
-                logger.info(f"Pruning empty auto-bridge: {e.canonical_name} ({eid})")
-                continue
-            final_entities.append(e)
-        payload.entities = final_entities
+            if eid not in visited and eid != root_id:
+                # strategy/financial nodes might be floating, anchor them to root or nearest
+                tree_rels.append(RelationCandidate(
+                    source_temp_id=root_id, 
+                    target_temp_id=eid, 
+                    relation_type="HAS_STRATEGY" if norm(e.entity_type) in ["strategy", "capability"] else "ASSOCIATED_WITH"
+                ))
+                visited.add(eid)
 
-        # Phase E: Strict One-Parent Rule (Perfect Hierarchy)
-        # Goal: Every node (except root) should have EXACTLY one taxonomic parent.
-        # If a node is inside a Bridge/Portfolio, delete its direct link to Root/Industry.
-        bridge_ids = {str(e.temp_id) for e in payload.entities if norm(e.entity_type) in ["productportfolio", "serviceportfolio", "management", "competitornetwork", "manufacturingnetwork"]}
-        
-        # 1. Map each target to its incoming relations
-        incoming_map = {}
-        for r in payload.relations:
-            tid = str(r.target_temp_id)
-            if tid not in incoming_map: incoming_map[tid] = []
-            incoming_map[tid].append(r)
-            
-        final_rels_strict = []
-        root_id = str(root.temp_id)
-        
-        for tid, rels in incoming_map.items():
-            if len(rels) <= 1:
-                final_rels_strict.extend(rels)
-                continue
-            
-            # If multiple, prioritize Bridge/Portfolio sources
-            bridge_source_rels = [r for r in rels if str(r.source_temp_id) in bridge_ids]
-            if bridge_source_rels:
-                # ONLY keep the bridge relationship(s). Prioritize the first one if multiple.
-                final_rels_strict.append(bridge_source_rels[0])
-                logger.info(f"StrictGuard: Pruned redundant parents for {tid}, kept bridge {bridge_source_rels[0].source_temp_id}")
-            else:
-                # If no bridge source, but multiple others (e.g. Industry and Root), prioritize Industry over Root
-                industry_source_rels = [r for r in rels if any(x in str(r.source_temp_id).lower() for x in ["ind_", "sub_"])]
-                if industry_source_rels:
-                    final_rels_strict.append(industry_source_rels[0])
-                else:
-                    final_rels_strict.append(rels[0])
-
-        payload.relations = final_rels_strict
+        payload.relations = tree_rels
         return payload
 
     def validate_extraction(self, payload: ExtractionPayload) -> List[str]:

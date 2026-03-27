@@ -340,8 +340,13 @@ class GraphStore:
         struct_meta = self.ontology.get("structural_metadata", {})
         taxonomic_rels = struct_meta.get("taxonomic_rels", taxonomic_rels)
 
-        self._enforce_structural_hierarchy(payload, id_map, taxonomic_rels, subject_id, source_authority, metadata)
-        self._global_reanchor(taxonomic_rels, subject_id)
+        # CATEGORY UNIFICATION: The guard.refine_payload (called above at line 159) 
+        # is now the SOLE source of truth for structural hierarchy (Taxonomic Anchoring).
+        # We disabled _enforce_structural_hierarchy and _global_reanchor here to prevent
+        # redundant re-branching of parallel portfolios (Service vs Product).
+        
+        # self._enforce_structural_hierarchy(payload, id_map, taxonomic_rels, subject_id, source_authority, metadata)
+        # self._global_reanchor(taxonomic_rels, subject_id)
         self._process_discoveries(payload.discoveries)
         self._check_and_fix_roots()
         self._refresh_alias_index()
