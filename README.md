@@ -1,65 +1,103 @@
+# 🚀 Platinum Knowledge Extraction Engine
 
-# NPR Project
+A high-fidelity, 4-stage knowledge graph extraction pipeline designed for the financial and corporate domain. This engine transforms unstructured corporate reports into a strictly hierarchical "Gold Standard" knowledge graph, optimized for Investment Intelligence.
 
-## Overview
-This project is a Python-based system for data extraction, graph storage, and processing. It is designed to handle large datasets efficiently and provide robust data manipulation capabilities.
+---
 
-## Core Components
+## 🏗️ Architecture & Pipeline
 
-### 1. Data Extraction (`extraction.py`)
-- Handles reading and parsing input data files (e.g., JSON, TXT).
-- Cleans and structures raw data for downstream processing.
-- Trade-off: Simplicity vs. flexibility. The extraction logic is kept simple for maintainability, but may require adaptation for new data formats.
+The system uses a **Funnel Architecture** to move from high-recall discovery to high-precision structural healing.
 
-### 2. Graph Storage (`graph_store.py`)
-- Implements data structures for storing and querying graphs.
-- Supports operations like adding nodes/edges, searching, and traversals.
-- Trade-off: In-memory storage is fast and easy to implement, but may not scale to extremely large graphs. For larger datasets, consider using a database or graph-specific storage engine.
+### 1. Multi-Stage Extraction Pipeline (`extraction.py`)
+- **Stage 1: Entity Discovery**: High-recall extraction of all potential entities (Companies, Products, Regions, People).
+- **Stage 2: Entity Resolution**: Deduplication and canonicalization using LLM-driven reasoning. Assigns unique Entity IDs (EIDs).
+- **Stage 3: Relation Mapping**: Strict hierarchical mapping based on an ontology-driven "Spine".
+- **Stage 4: Fact Enrichment**: Precision extraction of quantitative metrics (Revenue, Growth, Percentages) tied to specific entities.
 
-### 3. Main Logic (`main.py`)
-- Orchestrates the workflow: extraction → graph storage → processing.
-- Handles error management and logging.
-- Trade-off: Centralized control simplifies debugging and flow management, but can become a bottleneck if the workflow grows complex. Modularization is recommended for future scalability.
+### 2. LogicGuard: Structural Self-Healing (`validators.py`)
+The `LogicGuard` acts as the final structural gatekeeper. It performs:
+- **Taxonomic Re-anchoring**: Forcing all product and line entities into a strict `Root -> Domain -> Portfolio -> Line` tree.
+- **Bridge Node Creation**: Automatically creating logical containers (e.g., `ServicePortfolio`, `DigitalProducts`) to prevent orphans.
+- **BFS-based Connectivity**: Running a breadth-first search to ensure 100% of nodes are reachable from the Root LegalEntity.
 
-### 4. Data Models (`models.py`)
-- Defines Python classes and data structures for representing entities and relationships.
-- Ensures type safety and clarity in data handling.
-- Trade-off: Explicit models improve code readability and maintainability, but require updates when data schema changes.
+### 3. Central Knowledge Engine (`database.py` & `graph_store.py`)
+- **Persistent Ontology**: Rules, examples, and allowed triples are stored in Neon Postgres, making the AI's "worldview" dynamic and updateable without code changes.
+- **Graph Store**: Handles atomic ingestion of extraction payloads, managing alias indices and evidence tracking.
 
-### 5. Dependencies (`requirements.txt`)
-- Lists required Python packages for reproducibility.
-- Trade-off: Using minimal dependencies reduces complexity and potential conflicts, but may limit available features. Add packages as needed for advanced functionality.
+---
 
-## Design Decisions & Trade-offs
+## ✨ Key Features
 
-- **Simplicity vs. Scalability:** The project favors simple, readable code for ease of maintenance. For production-scale workloads, consider integrating database storage or distributed processing.
-- **In-memory Processing:** Fast for small to medium datasets, but not suitable for very large graphs. For scalability, use external storage solutions.
-- **Modular Structure:** Each component is separated for clarity and future extensibility. This makes it easier to test and update individual parts.
-- **Error Handling:** Centralized in `main.py` for easier debugging, but can be refactored into custom exception classes for more granular control.
+- **🎯 Gold Standard Hierarchy**: Eliminates "islands" and visual clutter by enforcing a strict taxonomic spine.
+- **📈 Quantitative Grounding**: Extracts and links financial metrics directly to their respective product lines with evidence quotes.
+- **🛡️ Evidence Tracking**: Every relation and metric includes a verbatim source text quote for 100% auditability.
+- **🧪 Dynamic Ontology**: Fine-tune the extraction logic by editing `base_ontology.json` without restarting the pipeline.
+- **🔄 Nuclear Reset Utility**: `clean_reset.py` allows for rapid iteration by wiping the graph while preserving the learned ontology.
 
-## Setup
-1. Clone the repository:
+---
+
+## ⚖️ Trade-offs & Design Decisions
+
+### Why a 4-Stage Funnel?
+- **Trade-off**: Latency vs. Precision.
+- **Decision**: While single-pass extraction is faster, it consistently fails at complex nesting. The 4-stage approach ensures 100% connectivity and minimal hallucinations by separating discovery from structural enforcement.
+
+### Bridge Nodes vs. Direct Links
+- **Trade-off**: Compactness vs. Logic.
+- **Decision**: We chose to enforce intermediate "Bridge Nodes" (Portfolios/Domains). This increases node count but results in a significantly more navigable and understandable graph for end-users compared to "spider-web" layouts.
+
+### Neon Postgres + Psycopg2
+- **Trade-off**: ORM Convenience vs. Performance.
+- **Decision**: We used raw SQL with `psycopg2` for maximum control over complex UPSERT logic and recursive tree queries, ensuring reliability on high-concurrency serverless platforms like Render/Neon.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Backend**: Python 3.10+, FastAPI
+- **Database**: Neon (Serverless Postgres)
+- **LLM Context**: Deepseek / Gemini-Flash / GPT-4o
+- **Validation**: Pydantic v2
+- **Visualization**: D3.js (Frontend)
+
+---
+
+## 🚀 Getting Started
+
+1. **Clone & Install**:
    ```bash
-   git clone https://github.com/NaplesVentureLLP/NPR.git
-   ```
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate
-   ```
-3. Install dependencies:
-   ```bash
+   git clone https://github.com/Nishchalpr4/final-extraction.git
+   cd final-extraction
    pip install -r requirements.txt
    ```
 
-## Usage
-- Run the main script:
-  ```bash
-  python main.py
-  ```
+2. **Environment Setup**:
+   Create a `.env` file with:
+   ```env
+   DATABASE_URL=postgres://...
+   LLM_API_KEY=sk-...
+   LLM_BASE_URL=https://...
+   LLM_MODEL=google/gemini-2.0-flash-001
+   ```
 
-## License
-MIT License
+3. **Initialize & Seed**:
+   ```bash
+   python clean_reset.py
+   ```
 
-## Contact
-For questions, contact Naples Venture LLP.
+4. **Launch Server**:
+   ```bash
+   uvicorn main:app --reload
+   ```
+
+---
+
+## 📊 Sample Output (Apple Inc.)
+The engine correctly maps:
+- **Apple Inc.** (Root)
+  - -> **Consumer Electronics** (Domain)
+    - -> **ProductPortfolio** (Bridge)
+      - -> **iPhone** (Line) -> **80M Sales** (Metric)
+  - -> **Services** (Domain)
+    - -> **ServicePortfolio** (Bridge)
+      - -> **iCloud** (Line)
