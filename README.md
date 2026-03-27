@@ -6,7 +6,35 @@ A high-fidelity, 4-stage knowledge graph extraction pipeline designed for the fi
 
 ## 🏗️ Architecture & Pipeline
 
-The system uses a **Funnel Architecture** to move from high-recall discovery to high-precision structural healing.
+### System Flow Diagram
+```mermaid
+graph TD
+    A[Unstructured Corporate Text] --> B[FastAPI Server]
+    B --> C[Multi-Stage Extraction Pipeline]
+    
+    subgraph "Extraction Funnel (extraction.py)"
+        C --> C1[Stage 1: Entity Discovery]
+        C1 --> C2[Stage 2: Entity Resolution]
+        C2 --> C3[Stage 3: Relation Mapping]
+        C3 --> C4[Stage 4: Fact Enrichment]
+    end
+    
+    C4 --> D[LogicGuard: Structural Healing]
+    
+    subgraph "Validation Layer (validators.py)"
+        D --> D1[Taxonomic Re-anchoring]
+        D --> D2[Bridge Node Creation]
+        D --> D3[Connectivity Check]
+    end
+    
+    D3 --> E[Graph Store / Ingestion]
+    E --> F[(Neon Postgres)]
+    F --> G[D3.js Visualization]
+    
+    style C fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#bbf,stroke:#333,stroke-width:2px
+    style F fill:#dfd,stroke:#333,stroke-width:2px
+```
 
 ### 1. Multi-Stage Extraction Pipeline (`extraction.py`)
 - **Stage 1: Entity Discovery**: High-recall extraction of all potential entities (Companies, Products, Regions, People).
