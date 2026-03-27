@@ -6,30 +6,30 @@
 
 // ── Entity type colors (must match backend models.py/ontology) ──────────────
 const ENTITY_TYPE_COLORS = {
-    "LegalEntity":          "#4A90D9",
-    "BusinessUnit":         "#27AE60",
-    "Sector":               "#8E44AD",
-    "Industry":             "#2C3E50",
-    "SubIndustry":          "#16A085",
-    "EndMarket":            "#D35400",
-    "Channel":              "#C0392B",
-    "ProductDomain":        "#2980B9",
-    "ProductFamily":        "#3498DB",
-    "ProductLine":          "#1ABC9C",
-    "Site":                 "#E74C3C",
-    "Geography":            "#F39C12",
-    "Person":               "#9B59B6",
-    "Role":                 "#7F8C8D",
-    "Technology":           "#00BCD4",
-    "Capability":           "#FF5722",
-    "Brand":                "#FF9800",
-    "Initiative":           "#795548",
-    "Financial":            "#4CAF50",
-    "Program":              "#607D8B",
-    "Management":           "#FFD700",
-    "Competitors":          "#C0392B",
-    "ProductPortfolio":     "#3b82f6",
-    "Manufacturer":         "#f43f5e",
+    "LegalEntity": "#4A90D9",
+    "BusinessUnit": "#27AE60",
+    "Sector": "#8E44AD",
+    "Industry": "#2C3E50",
+    "SubIndustry": "#16A085",
+    "EndMarket": "#D35400",
+    "Channel": "#C0392B",
+    "ProductDomain": "#2980B9",
+    "ProductFamily": "#3498DB",
+    "ProductLine": "#1ABC9C",
+    "Site": "#E74C3C",
+    "Geography": "#F39C12",
+    "Person": "#9B59B6",
+    "Role": "#7F8C8D",
+    "Technology": "#00BCD4",
+    "Capability": "#FF5722",
+    "Brand": "#FF9800",
+    "Initiative": "#795548",
+    "Financial": "#4CAF50",
+    "Program": "#607D8B",
+    "Management": "#FFD700",
+    "Competitors": "#C0392B",
+    "ProductPortfolio": "#3b82f6",
+    "Manufacturer": "#f43f5e",
 };
 
 // ── State ──────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     showPromptBtn.addEventListener("click", async () => {
         promptOverlay.style.display = "flex";
-        
+
         const text = document.getElementById("text-input").value.trim();
         const sourcePreview = document.getElementById("prompt-source-preview");
         if (sourcePreview) {
@@ -147,10 +147,10 @@ function initSharing() {
 function renderLegend(colors = ENTITY_TYPE_COLORS) {
     const legendEl = document.getElementById("graph-legend");
     let html = "";
-    
+
     // Sort types alphabetically for better UX
     const sortedTypes = Object.keys(colors).sort();
-    
+
     for (const type of sortedTypes) {
         const color = colors[type];
         const label = type.replace(/([A-Z])/g, " $1").trim();
@@ -265,7 +265,7 @@ async function handleExtract(customPrompt = null) {
             const err = await res.json();
             console.error("Extraction error details:", err);
             // If it's a validation error array, extract the first message
-            const detailMsg = Array.isArray(err.detail) 
+            const detailMsg = Array.isArray(err.detail)
                 ? err.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('; ')
                 : (err.detail || "Extraction failed");
             throw new Error(detailMsg);
@@ -273,7 +273,7 @@ async function handleExtract(customPrompt = null) {
 
         const data = await res.json();
         graph.update(data.graph);
-        
+
         // Refresh ontology (in case new types were discovered)
         fetchOntology();
 
@@ -305,23 +305,23 @@ async function handleExtract(customPrompt = null) {
 // ── Reset Handler ──────────────────────────────────────────────────
 async function handleReset() {
     const btn = document.getElementById("btn-reset");
-    
+
     // Simple double-click confirmation to avoid native popup blocking
     if (!btn.classList.contains("confirm-pending")) {
         btn.classList.add("confirm-pending");
         const originalHtml = btn.innerHTML;
         btn.innerHTML = `<span>Confirm Reset?</span>`;
-        
+
         setTimeout(() => {
             btn.classList.remove("confirm-pending");
             btn.innerHTML = originalHtml;
         }, 3000);
         return;
     }
-    
+
     btn.classList.remove("confirm-pending");
     const originalText = btn.innerHTML;
-    
+
     try {
         btn.disabled = true;
         btn.innerHTML = `
@@ -334,7 +334,7 @@ async function handleReset() {
 
         const res = await fetch("/api/graph", { method: "DELETE" });
         if (!res.ok) throw new Error("Server reset failed");
-        
+
         graph.reset();
         chunkCount = 0;
 
@@ -423,6 +423,16 @@ function addLogEntry(docName, diff) {
         <span class="log-doc">${docName}</span>
         <span class="log-stats">+${(diff.new_entities || []).length}E</span>
     `;
+    logEl.insertBefore(entry, logEl.firstChild);
+}
+
+// ── Status Bar ─────────────────────────────────────────────────────
+function setStatus(text, isError = false) {
+    const statusEl = document.getElementById("status-text");
+    statusEl.textContent = text;
+    statusEl.style.color = isError ? "#ef4444" : "#4a5568";
+}
+`;
     logEl.insertBefore(entry, logEl.firstChild);
 }
 

@@ -257,7 +257,7 @@ class GraphVisualization {
             })
             .attr("stroke-width", d => (newNodeIds.has(d.id) || self.collapsedNodes.has(d.id)) ? 3 : 2)
             .style("filter", "url(#shadow)");
-        
+
         // Color accent line
         enter.append("rect")
             .attr("width", 5)
@@ -335,7 +335,7 @@ class GraphVisualization {
             });
 
         // Attributes Grid (Visible on glance)
-        enter.each(function(d) {
+        enter.each(function (d) {
             if (self.collapsedNodes.has(d.id)) return;
             const container = d3.select(this);
             const attrs = d.attributes || {};
@@ -387,11 +387,11 @@ class GraphVisualization {
             });
 
         // Interaction
-        enter.on("mouseenter", function(event, d) {
-                self._highlightConnections(d, true);
-                self._showTooltip(event, d);
-            })
-            .on("mouseleave", function(event, d) {
+        enter.on("mouseenter", function (event, d) {
+            self._highlightConnections(d, true);
+            self._showTooltip(event, d);
+        })
+            .on("mouseleave", function (event, d) {
                 self._highlightConnections(d, false);
                 self._hideTooltip();
             })
@@ -479,7 +479,7 @@ class GraphVisualization {
 
     _tick() {
         const self = this;
-        
+
         // Dynamic box intersection with marker padding
         const getIntersection = (node, otherX, otherY, padding = 0) => {
             const dx = otherX - node.x;
@@ -489,10 +489,10 @@ class GraphVisualization {
             const dims = this._getNodeDims(node);
             const W = dims.w / 2 + padding;
             const H = dims.h / 2 + padding;
-            
+
             const tan = Math.abs(dy / dx);
             const rectTan = H / W;
-            
+
             let scale = 1.0;
             if (tan > rectTan) {
                 scale = H / Math.abs(dy);
@@ -509,11 +509,11 @@ class GraphVisualization {
 
         this.linkGroup.selectAll(".edge-path")
             .attr("d", d => {
-                const sameNodes = this.links.filter(l => 
+                const sameNodes = this.links.filter(l =>
                     (l.source.id === d.source.id && l.target.id === d.target.id) ||
                     (l.source.id === d.target.id && l.target.id === d.source.id)
                 );
-                
+
                 const offsetAmount = 50;
                 let midOffset = 0;
                 if (sameNodes.length > 1) {
@@ -528,7 +528,7 @@ class GraphVisualization {
                 const len = Math.sqrt(dx_total * dx_total + dy_total * dy_total) || 1;
                 const nx = -dy_total / len;
                 const ny = dx_total / len;
-                
+
                 const cp1x = mx + nx * midOffset;
                 const cp1y = my + ny * midOffset;
 
@@ -541,7 +541,7 @@ class GraphVisualization {
 
         this.linkGroup.selectAll(".edge-label")
             .attr("x", d => {
-                const sameNodes = this.links.filter(l => 
+                const sameNodes = this.links.filter(l =>
                     (l.source.id === d.source.id && l.target.id === d.target.id) ||
                     (l.source.id === d.target.id && l.target.id === d.source.id)
                 );
@@ -561,7 +561,7 @@ class GraphVisualization {
                 return 0.25 * d.source.x + 0.5 * cp1x + 0.25 * d.target.x;
             })
             .attr("y", d => {
-                const sameNodes = this.links.filter(l => 
+                const sameNodes = this.links.filter(l =>
                     (l.source.id === d.source.id && l.target.id === d.target.id) ||
                     (l.source.id === d.target.id && l.target.id === d.source.id)
                 );
@@ -582,11 +582,11 @@ class GraphVisualization {
             });
 
         this.linkGroup.selectAll(".edge-label-bg")
-            .attr("x", function(d) {
+            .attr("x", function (d) {
                 const sibling = d3.select(this.parentNode).select(".edge-label");
                 return sibling.attr("x") - d3.select(this).attr("width") / 2;
             })
-            .attr("y", function(d) {
+            .attr("y", function (d) {
                 const sibling = d3.select(this.parentNode).select(".edge-label");
                 return sibling.attr("y") - 8;
             });
@@ -754,7 +754,7 @@ class GraphVisualization {
                 </div>
             `;
             html += `<div class="detail-name">${d.label}</div>`;
-            
+
             if (d.aliases && d.aliases.length > 0) {
                 html += `<div class="detail-aliases">Also known as: ${d.aliases.join(", ")}</div>`;
             }
@@ -894,8 +894,8 @@ class GraphVisualization {
         this.nodes.forEach(node => {
             // Persons and Roles cluster around Management
             if (node.type === 'Person' || node.type === 'Role') {
-                const parentRel = this.links.find(l => 
-                    (l.target.id === node.id || l.target === node.id) && 
+                const parentRel = this.links.find(l =>
+                    (l.target.id === node.id || l.target === node.id) &&
                     ['HELD_BY', 'HAS_ROLE'].includes(l.relation)
                 );
                 if (parentRel) {
@@ -918,22 +918,22 @@ class GraphVisualization {
 
         const levels = {
             "LegalEntity": 1,           // Partners/Competitors
-            "Management": 2, 
+            "Management": 2,
             "Competitors": 2,
             "ProductPortfolio": 2,
             "BusinessUnit": 2,
-            "Role": 3, 
-            "Person": 4, 
+            "Role": 3,
+            "Person": 4,
             "Site": 4,
-            "ProductDomain": 5, 
-            "Technology": 5, 
+            "ProductDomain": 5,
+            "Technology": 5,
             "Geography": 5,
-            "ProductFamily": 6, 
+            "ProductFamily": 6,
             "Capability": 6,
-            "ProductLine": 7, 
+            "ProductLine": 7,
             "Brand": 7,
-            "EndMarket": 8, 
-            "Channel": 8, 
+            "EndMarket": 8,
+            "Channel": 8,
             "Program": 8
         };
 
