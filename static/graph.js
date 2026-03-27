@@ -138,6 +138,8 @@ class GraphVisualization {
     _applyFilterAndRender() {
         const newNodeIds = new Set(this.rawNodes.filter(n => n.is_new).map(n => n.id));
         const newLinkIds = new Set(this.rawLinks.filter(l => l.is_new).map(l => l.id));
+        const customNodeIds = new Set(this.rawNodes.filter(n => n.is_custom).map(n => n.id));
+        const customLinkIds = new Set(this.rawLinks.filter(l => l.is_custom).map(l => l.id));
 
         // Filter out nodes that belong to collapsed parents
         // Rule: If a node S is collapsed, hide all nodes T where S -> HAS_X -> T
@@ -183,8 +185,8 @@ class GraphVisualization {
         }));
 
         // Render
-        this._renderLinks(newLinkIds);
-        this._renderNodes(newNodeIds);
+        this._renderLinks(newLinkIds, customLinkIds);
+        this._renderNodes(newNodeIds, customNodeIds);
 
         // Restart simulation
         this.simulation.nodes(this.nodes);
@@ -224,7 +226,7 @@ class GraphVisualization {
         return { w: 160, h: 84 }; // Ultra-compact base size
     }
 
-    _renderNodes(newNodeIds) {
+    _renderNodes(newNodeIds, customNodeIds) {
         const self = this;
         const nodeSelection = this.nodeGroup.selectAll(".node-group")
             .data(this.nodes, d => d.id);
@@ -236,7 +238,7 @@ class GraphVisualization {
 
         const enter = nodeSelection.enter()
             .append("g")
-            .attr("class", d => `node-group ${newNodeIds.has(d.id) ? "node-new" : ""}`)
+            .attr("class", d => `node-group ${newNodeIds.has(d.id) ? "node-new" : ""} ${customNodeIds.has(d.id) ? "node-custom" : ""}`)
             .attr("opacity", 0)
             .style("cursor", "pointer")
             .call(this._drag());
@@ -253,9 +255,10 @@ class GraphVisualization {
             .attr("fill", "#1a2845")
             .attr("stroke", d => {
                 if (self.collapsedNodes.has(d.id)) return "#3b82f6";
+                if (customNodeIds.has(d.id)) return "#f43f5e"; // Magenta/Rose
                 return newNodeIds.has(d.id) ? "#fbbf24" : "#334155";
             })
-            .attr("stroke-width", d => (newNodeIds.has(d.id) || self.collapsedNodes.has(d.id)) ? 3 : 2)
+            .attr("stroke-width", d => (newNodeIds.has(d.id) || customNodeIds.has(d.id) || self.collapsedNodes.has(d.id)) ? 3 : 2)
             .style("filter", "url(#shadow)");
 
         // Color accent line
@@ -411,7 +414,7 @@ class GraphVisualization {
     }
 
 
-    _renderLinks(newLinkIds) {
+    _renderLinks(newLinkIds, customLinkIds) {
         const self = this;
         const linkSelection = this.linkGroup.selectAll(".edge-group")
             .data(this.links, d => d.id);
@@ -426,17 +429,17 @@ class GraphVisualization {
             .attr("class", "edge-group")
             .attr("opacity", 0);
 
-        // Curved path
         enter.append("path")
-            .attr("class", d => `edge-path ${newLinkIds.has(d.id) ? "edge-new" : ""}`)
+            .attr("class", d => `edge-path ${newLinkIds.has(d.id) ? "edge-new" : ""} ${customLinkIds.has(d.id) ? "edge-custom" : ""}`)
             .attr("fill", "none")
             .attr("stroke", d => {
+                if (customLinkIds.has(d.id)) return "#f43f5e";
                 if (newLinkIds.has(d.id)) return "#fbbf24";
                 if (d.relation === "COMPETES_WITH") return "#ef4444";
                 return "#475569";
             })
             .attr("stroke-width", d => {
-                const base = newLinkIds.has(d.id) ? 3 : 2;
+                const base = (newLinkIds.has(d.id) || customLinkIds.has(d.id)) ? 3 : 2;
                 const weight = d.weight || 1.0;
                 return base * (0.5 + weight);
             })
@@ -462,7 +465,10 @@ class GraphVisualization {
         enter.append("text")
             .attr("class", "edge-label")
             .attr("text-anchor", "middle")
-            .attr("fill", d => newLinkIds.has(d.id) ? "#fbbf24" : "#94a3b8")
+            .attr("fill", d => {
+                if (customLinkIds.has(d.id)) return "#f43f5e";
+                return newLinkIds.has(d.id) ? "#fbbf24" : "#94a3b8";
+            })
             .attr("font-size", "11px")
             .attr("font-weight", "600")
             .attr("letter-spacing", "0.05em")

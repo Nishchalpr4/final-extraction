@@ -53,61 +53,21 @@
     <!-- ─── MAIN LAYOUT ─── -->
     <main id="app-main">
         <!-- LEFT PANEL: Input -->
-        <aside id="input-panel">
-            <nav class="panel-tabs">
-                <button class="tab-btn active" data-tab="extract">Quick Extract</button>
-                <button class="tab-btn" data-tab="ingest">Ingestion Pipeline</button>
-            </nav>
-
-            <!-- TAB: Quick Extract -->
-            <div id="tab-extract" class="tab-content active">
+        <aside id="input-panel" style="display: flex; flex-direction: column; height: 100%;">
+            <div id="tab-extract" class="tab-content active" style="display: flex; flex-direction: column; flex: 1;">
                 <div class="panel-header">
-                    <h2>Text Input</h2>
+                    <h2>Quick Extract</h2>
                     <span class="chunk-badge" id="chunk-count">0 chunks processed</span>
                 </div>
 
-                <div class="input-grid" style="margin-bottom: 12px;">
-                    <div class="input-group">
-                        <label for="doc-company">Company</label>
-                        <input type="text" id="doc-company" placeholder="e.g., Nike Inc.">
-                    </div>
-                    <div class="input-group">
-                        <label for="doc-ticker">Ticker</label>
-                        <input type="text" id="doc-ticker" placeholder="e.g., NKE">
-                    </div>
-                    <div class="input-group">
-                        <label for="doc-year">Year</label>
-                        <input type="number" id="doc-year" value="2024">
-                    </div>
-                    <div class="input-group">
-                        <label for="doc-period">Period</label>
-                        <select id="doc-period">
-                            <option>Annual</option>
-                            <option>Q1</option>
-                            <option>Q2</option>
-                            <option>Q3</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="input-grid" style="margin-bottom: 12px;">
-                    <div class="input-group">
-                        <label for="doc-name">Document Name</label>
-                        <input type="text" id="doc-name" placeholder="e.g., Annual Report 2024" value="User Input">
-                    </div>
-                    <div class="input-group">
-                        <label for="section-ref">Section Reference</label>
-                        <input type="text" id="section-ref" placeholder="e.g., page_12" value="chunk">
-                    </div>
-                </div>
-
-                <div class="input-group textarea-group">
-                    <label for="text-input">Paste text chunk</label>
+                <div class="input-group textarea-group" style="flex: 1; min-height: 200px; margin-bottom: 20px;">
+                    <label for="text-input">Paste Text Chunk</label>
                     <textarea id="text-input"
-                        placeholder="Paste a section of a company document here...&#10;&#10;The system will extract structural entities (companies, business units, products, people, sites, etc.) and their relationships."></textarea>
+                        placeholder="Paste corporate text or report chunk here... watch the graph grow."
+                        style="height: 100%; resize: none;"></textarea>
                 </div>
 
-                <div class="extraction-actions" style="display: flex; gap: 8px;">
+                <div class="extraction-actions" style="display: flex; gap: 8px; margin-bottom: 20px;">
                     <button id="btn-extract" class="btn-primary" style="flex: 1;">
                         <span class="btn-text">Extract Entities</span>
                         <span class="btn-loading" style="display:none;">
@@ -128,81 +88,29 @@
                 </div>
 
                 <!-- Extraction Result -->
-                <div id="extraction-result" class="result-card" style="display:none;">
-                    <h3>Extraction Result</h3>
+                <div id="extraction-result" class="result-card" style="display:none; margin-bottom: 20px;">
+                    <h3>Latest Extraction</h3>
                     <div id="result-content"></div>
                 </div>
 
-                <!-- Extraction Log -->
-                <div id="extraction-log" class="log-section">
+                <!-- Extraction Log (Bottom) -->
+                <div id="extraction-log" class="log-section" style="margin-top: auto;">
                     <h3>Extraction History</h3>
                     <div id="log-entries" class="log-entries"></div>
                 </div>
             </div>
+        </aside>
 
-            <!-- TAB: Ingestion Pipeline -->
-            <div id="tab-ingest" class="tab-content">
-                <div class="panel-header">
-                    <h2>Document Ingestion</h2>
-                </div>
+        <!-- Hidden inputs for backward compatibility with app.js -->
+        <div style="display:none;">
+            <input type="text" id="doc-company" value="">
+            <input type="text" id="doc-ticker" value="">
+            <input type="number" id="doc-year" value="2024">
+            <select id="doc-period"><option>Annual</option></select>
+            <input type="text" id="doc-name" value="User Input">
+            <input type="text" id="section-ref" value="chunk">
+        </div>
 
-                <div class="ingestion-workflow">
-                    <div class="workflow-step">
-                        <label>1. Select/Upload PDF</label>
-                        <div class="file-upload-zone" id="file-drop-zone">
-                            <input type="file" id="pdf-upload" accept=".pdf" style="display:none;">
-                            <div class="upload-placeholder">
-                                <span>Drop PDF or click to browse</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="metadata-config" style="display:none;">
-                        <div class="workflow-step">
-                            <label>2. Configure Metadata</label>
-                            <div class="input-grid">
-                                <div class="input-group">
-                                    <label>Company</label>
-                                    <input type="text" id="meta-company" placeholder="e.g. Nike Inc.">
-                                </div>
-                                <div class="input-group">
-                                    <label>Ticker</label>
-                                    <input type="text" id="meta-ticker" placeholder="e.g. NKE">
-                                </div>
-                                <div class="input-group">
-                                    <label>Year</label>
-                                    <input type="number" id="meta-year" value="2024">
-                                </div>
-                                <div class="input-group">
-                                    <label>Period</label>
-                                    <select id="meta-period">
-                                        <option>Annual</option>
-                                        <option>Q1</option>
-                                        <option>Q2</option>
-                                        <option>Q3</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button id="btn-process-doc" class="btn-primary">
-                            <span class="btn-text">Process & Generate Golden Chunks</span>
-                            <span class="btn-loading" style="display:none;">Extracting...</span>
-                        </button>
-                    </div>
-
-                    <div id="ingestion-status" class="status-box" style="display:none;">
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
-                        </div>
-                        <span id="ingestion-status-text">Processing...</span>
-                    </div>
-
-                    <div id="golden-chunks-list" class="chunks-list">
-                        <!-- Chunks will appear here -->
-                    </div>
-                </div>
-            </div>
         </aside>
 
         <!-- RIGHT: Graph Visualization -->

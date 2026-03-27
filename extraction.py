@@ -142,11 +142,13 @@ TEXT:
 {text}
 """
 
-def extract_knowledge(text: str, document_id: str = "doc_test", document_name: str = "Unspecified Source") -> ExtractionPayload:
+def extract_knowledge(text: str, document_id: str = "doc_test", document_name: str = "Unspecified Source", custom_prompt: str = None) -> ExtractionPayload:
     """
     Full pipeline: text -> dynamic prompt -> LLM -> Validation.
     """
     prompt = get_dynamic_prompt(text)
+    if custom_prompt:
+        prompt = f"{prompt}\n\n[USER CUSTOM INSTRUCTIONS]:\n{custom_prompt}"
     raw_json = call_llm(prompt)
     
     try:
@@ -183,8 +185,16 @@ def extract_knowledge(text: str, document_id: str = "doc_test", document_name: s
         # Clean data for Pydantic (remove unexpected keys if any)
         valid_keys = {"entities", "relations", "thought_process", "source_document_id", "source_document_name", "quant_data", "unstructured_analysis"}
         pydantic_data = {k: v for k, v in data.items() if k in valid_keys}
-
-        return ExtractionPayload(**pydantic_data)
+        payload = ExtractionPayload(**pydantic_data)
+        
+        # Tag as custom if requested
+        if custom_prompt:
+            for ent in payload.entities:
+                ent.is_custom = True
+            for rel in payload.relations:
+                rel.is_custom = True
+                
+        return payload
     except Exception as e:
         logger.error(f"Failed to parse LLM output: {e}\nRaw output: {raw_json}")
         # Return a valid empty payload instead of crashing
@@ -205,10 +215,11 @@ class MultiStageExtractor:
     Stage 3: Relation Mapping (Strict Grounding)
     Stage 4: Fact/Attribute Enrichment (Precision)
     """
-    def __init__(self, text: str, document_id: str, document_name: str):
+    def __init__(self, text: str, document_id: str, document_name: str, custom_prompt: str = None):
         self.text = text
         self.doc_id = document_id
         self.doc_name = document_name
+        self.custom_prompt = custom_prompt
         self.db = DatabaseManager()
         self.ontology = self.db.get_ontology()
         self.prompts = self.ontology.get("multi_stage_prompts", {})
@@ -232,6 +243,8 @@ class MultiStageExtractor:
             return []
             
         prompt = f"{prompt_tpl}\n\nTEXT:\n{self.text}"
+        if self.custom_prompt:
+            prompt = f"{prompt}\n\n[USER CUSTOM INSTRUCTIONS]:\n{self.custom_prompt}"
         raw_json = call_llm(prompt, timeout=90) # Added timeout
         log_stage_debug("STAGE 1 (Discovery)", prompt, raw_json)
         from validators import safe_json_loads, find_list_data
@@ -435,9 +448,16 @@ class MultiStageExtractor:
         guard = LogicGuard(self.ontology)
         payload = guard.refine_payload(payload)
         
+        # Tag as custom if requested
+        if self.custom_prompt:
+            for ent in payload.entities:
+                ent.is_custom = True
+            for rel in payload.relations:
+                rel.is_custom = True
+                
         return payload
 
-def extract_knowledge_multistage(text: str, document_id: str = "doc_test", document_name: str = "Unspecified Source") -> ExtractionPayload:
+def extract_knowledge_multistage(text: str, document_id: str = "doc_test", document_name: str = "Unspecified Source", custom_prompt: str = None) -> ExtractionPayload:
     """
     Entry point for the Multi-Stage extraction pipeline.
     SELF-HEALING FALLBACK: Unified Mode for short text or specific models.
@@ -448,7 +468,7 @@ def extract_knowledge_multistage(text: str, document_id: str = "doc_test", docum
     # Check if we should use Unified Mode (Short text or specific models)
     if len(text) < 1500 or "free" in model.lower() or "mini" in model.lower() or "flash" in model.lower():
         logger.info(f"[EXTRACTION] Unified Mode active for: {model}")
-        payload = extract_knowledge(text, document_id, document_name)
+        payload = extract_knowledge(text, document_id, document_name, custom_prompt=custom_prompt)
         
         # Still apply LogicGuard for structural integrity
         from validators import LogicGuard
@@ -458,7 +478,7 @@ def extract_knowledge_multistage(text: str, document_id: str = "doc_test", docum
         return guard.refine_payload(payload)
 
     # Standard Multi-Stage
-    extractor = MultiStageExtractor(text, document_id, document_name)
+    extractor = MultiStageExtractor(text, document_id, document_name, custom_prompt=custom_prompt)
     extractor.run_stage_1_entities()
     extractor.run_stage_2_resolution()
     extractor.run_stage_3_relations()

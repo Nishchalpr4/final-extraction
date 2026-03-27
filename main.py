@@ -103,7 +103,8 @@ async def extract_entities(req: ExtractRequest):
         payload = extract_knowledge_multistage(
             text=req.text,
             document_name=req.document_name,
-            document_id=req.metadata.get("document_id", "user_input_doc")
+            document_id=req.metadata.get("document_id", "user_input_doc"),
+            custom_prompt=req.custom_prompt
         )
 
         # Ingest into graph store

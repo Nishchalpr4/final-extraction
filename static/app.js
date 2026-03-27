@@ -35,6 +35,7 @@ const ENTITY_TYPE_COLORS = {
 // ── State ──────────────────────────────────────────────────────────
 let graph;
 let chunkCount = 0;
+let lastExtractedText = ""; // Store for re-runs
 
 // ── Initialize ─────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -92,7 +93,10 @@ document.addEventListener("DOMContentLoaded", () => {
     runCustomBtn.addEventListener("click", () => {
         const customPrompt = promptEditor.value.trim();
         promptOverlay.style.display = "none";
-        handleExtract(customPrompt);
+        
+        // Use the last-extracted text for re-runs, or the current textarea if none
+        const textToUse = lastExtractedText || document.getElementById("text-input").value.trim();
+        handleExtract(customPrompt, textToUse);
     });
 
     // Close on click outside
@@ -221,11 +225,17 @@ async function checkHealth() {
 }
 
 // ── Extract Handler ────────────────────────────────────────────────
-async function handleExtract(customPrompt = null) {
+async function handleExtract(customPrompt = null, forcedText = null) {
     const textInput = document.getElementById("text-input");
     const docName = document.getElementById("doc-name").value.trim() || "User Input";
     const sectionRef = document.getElementById("section-ref").value.trim() || "chunk";
-    const text = textInput.value.trim();
+    
+    // Support forced text for custom prompt re-runs
+    const text = (forcedText !== null) ? forcedText : textInput.value.trim();
+
+    if (text) {
+        lastExtractedText = text; // Persist for re-runs
+    }
 
     const metadata = {
         company_name: document.getElementById("doc-company").value,
@@ -423,16 +433,6 @@ function addLogEntry(docName, diff) {
         <span class="log-doc">${docName}</span>
         <span class="log-stats">+${(diff.new_entities || []).length}E</span>
     `;
-    logEl.insertBefore(entry, logEl.firstChild);
-}
-
-// ── Status Bar ─────────────────────────────────────────────────────
-function setStatus(text, isError = false) {
-    const statusEl = document.getElementById("status-text");
-    statusEl.textContent = text;
-    statusEl.style.color = isError ? "#ef4444" : "#4a5568";
-}
-`;
     logEl.insertBefore(entry, logEl.firstChild);
 }
 
