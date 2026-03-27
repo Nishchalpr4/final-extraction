@@ -382,8 +382,8 @@ class MultiStageExtractor:
                 target_temp_id=tid,
                 relation_type=rtype,
                 confidence=rel.get('confidence', 1.0),
-                source_text=rel.get('evidence', ""),
-                evidence=rel_evidence
+                source_text=revidence,
+                evidence=evidence_ref
             ))
 
         payload_quants = []

@@ -266,6 +266,43 @@ class LogicGuard:
 
         payload.relations = tree_rels
 
+        # ════════════════════════════════════════════════════════════════════════
+        # PHASE G: Product Hierarchy Normalization (Domain > Family > Line)
+        # ════════════════════════════════════════════════════════════════════════
+        pl_types = {"productline", "product", "item", "brand", "service", "digitalproduct"}
+        pf_types = {"productfamily", "productportfolio", "businessunit"}
+        pd_types = {"productdomain", "industry", "subindustry"}
+
+        families = {str(e.temp_id) for e in payload.entities if norm(e.entity_type) in pf_types or "group" in str(e.canonical_name).lower() or "portfolio" in str(e.canonical_name).lower()}
+        domains = {str(e.temp_id) for e in payload.entities if norm(e.entity_type) in pd_types}
+        
+        if families:
+            # Sort families to pick the most descriptive one if multiple
+            default_family = list(families)[0]
+            for r in payload.relations:
+                src_ent = entity_map.get(str(r.source_temp_id), root)
+                tgt_ent = entity_map.get(str(r.target_temp_id), root)
+                
+                src_type = norm(src_ent.entity_type)
+                tgt_type = norm(tgt_ent.entity_type)
+                
+                # If Domain/Portfolio -> Line/Product, and Family exists, re-route to Domain -> Family -> Line
+                if src_type in (pd_types | {"legalentity"}) and tgt_type in pl_types:
+                    if str(r.source_temp_id) != default_family:
+                        # Re-route to family
+                        r.source_temp_id = default_family
+                        r.relation_type = "INCLUDES"
+                    
+            # Ensure Domain -> Family link exists
+            for f in families:
+                has_domain_parent = any(str(r.target_temp_id) == f and norm(entity_map.get(str(r.source_temp_id), root).entity_type) in pd_types for r in payload.relations)
+                if not has_domain_parent and domains:
+                    payload.relations.append(RelationCandidate(
+                        source_temp_id=list(domains)[0],
+                        target_temp_id=f,
+                        relation_type="HAS_PRODUCT_FAMILY"
+                    ))
+
         # Phase D: Prune Empty Auto-Bridges
         # If an auto-bridge was created but has no children, and a better one exists, remove it.
         has_outgoing = {str(r.source_temp_id) for r in payload.relations}
