@@ -148,8 +148,6 @@ def extract_knowledge(text: str, document_id: str = "doc_test", document_name: s
     """
     prompt = get_dynamic_prompt(text)
     raw_json = call_llm(prompt)
-    with open("raw_response.json", "w") as f:
-        f.write(raw_json)
     
     try:
         # CLEAN: Strip Markdown code blocks if present
