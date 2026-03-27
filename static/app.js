@@ -227,8 +227,10 @@ async function checkHealth() {
 // ── Extract Handler ────────────────────────────────────────────────
 async function handleExtract(customPrompt = null, forcedText = null) {
     const textInput = document.getElementById("text-input");
-    const docName = document.getElementById("doc-name").value.trim() || "User Input";
-    const sectionRef = document.getElementById("section-ref").value.trim() || "chunk";
+    const docNameEl = document.getElementById("doc-name");
+    const sectionRefEl = document.getElementById("section-ref");
+    const docName = docNameEl ? docNameEl.value.trim() : "User Input";
+    const sectionRef = sectionRefEl ? sectionRefEl.value.trim() : "chunk";
     
     // Support forced text for custom prompt re-runs
     const text = (forcedText !== null) ? forcedText : textInput.value.trim();
@@ -238,10 +240,10 @@ async function handleExtract(customPrompt = null, forcedText = null) {
     }
 
     const metadata = {
-        company_name: document.getElementById("doc-company").value,
-        company_ticker: document.getElementById("doc-ticker").value,
-        fiscal_year: parseInt(document.getElementById("doc-year").value),
-        fiscal_period: document.getElementById("doc-period").value
+        company_name: document.getElementById("doc-company")?.value || "",
+        company_ticker: document.getElementById("doc-ticker")?.value || "",
+        fiscal_year: parseInt(document.getElementById("doc-year")?.value || "2024"),
+        fiscal_period: document.getElementById("doc-period")?.value || "Annual"
     };
 
     if (!text) {
