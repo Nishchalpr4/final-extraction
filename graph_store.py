@@ -389,11 +389,22 @@ class GraphStore:
             current_parent = parent_map.get(can_id)
 
             # ORPHAN HEALING
+            # NEW: If it's a discovery, we are more relaxed. 
+            # If it already has ANY relation (even non-taxonomic) in this payload, 
+            # we skip the bridge to allow for organic "Network" structures.
+            is_discovery = any(d.suggested_label == etype for d in payload.discoveries)
+            has_payload_link = any(r.source_temp_id == entity.temp_id or r.target_temp_id == entity.temp_id for r in payload.relations)
+
             if not has_parent and not current_parent:
+                if is_discovery and has_payload_link:
+                    print(f"[HIERARCHY] Skipping bridge for DISCOVERY entity: {can_id} ({etype})")
+                    continue
                 self._apply_bridge_rule(can_id, etype, subject_id, bridge_rules, comp_name)
             
             # ACTIVE DECLUTTERING: If linked directly to root but a bridge rule exists, move it.
             elif current_parent == subject_id and etype in bridge_rules:
+                if is_discovery: continue # Discovery nodes keep their direct links
+                
                 # Exception: Geography already has a parent region in this payload? 
                 # (e.g., LLM linked Nike -> Vietnam AND SE Asia -> Vietnam)
                 # We skip re-bridging Geography if it already has a non-root taxonomic parent.

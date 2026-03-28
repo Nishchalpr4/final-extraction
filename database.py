@@ -421,12 +421,12 @@ class DatabaseManager:
                     INSERT INTO new_entity_types (suggested_label, rationale)
                     VALUES (%s, %s)
                     ON CONFLICT (suggested_label) DO NOTHING
-                """, (d.suggested_label, getattr(d, 'rationale', None)))
+                """, (d.suggested_label, getattr(d, 'context', None)))
             elif d.type == 'RELATION' and getattr(d, 'source_type', None) and getattr(d, 'target_type', None):
                 cursor.execute("""
                     INSERT INTO new_relation_types (suggested_label, source_type, target_type, rationale)
                     VALUES (%s, %s, %s, %s)
-                """, (d.suggested_label, d.source_type, d.target_type, getattr(d, 'rationale', None)))
+                """, (d.suggested_label, d.source_type, d.target_type, getattr(d, 'context', None)))
             conn.commit()
         finally:
             self._release_connection(conn)

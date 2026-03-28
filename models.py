@@ -43,6 +43,7 @@ class EntityCandidate(BaseModel):
     evidence: list[EvidenceRef] = Field(default_factory=list)
     confidence: float = 1.0
     source_text: Optional[str] = None
+    is_custom: bool = False
     notes: Optional[str] = None
 
 class RelationCandidate(BaseModel):
@@ -55,6 +56,7 @@ class RelationCandidate(BaseModel):
     evidence: list[EvidenceRef] = Field(default_factory=list)
     confidence: float = 1.0
     source_text: Optional[str] = None
+    is_custom: bool = False
     notes: Optional[str] = None
 
 class DocSpecificAttributes(BaseModel):

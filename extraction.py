@@ -110,33 +110,32 @@ def get_dynamic_prompt(text: str = "{text}") -> str:
         examples_str += "\n"
 
     return f"""### ROLE
-You are an Advanced Investment Analyst AI. Your task is to transform unstructured corporate text into a **STRICT HIERARCHICAL KNOWLEDGE GRAPH**. 
-MANDATORY: You MUST extract broad categories (e.g., 'consumer electronics', 'athletic footwear') as **ProductDomain** entities.
+You are a High-Precision Corporate Intelligence AI. Your task is to transform unstructured text into a **STRICT HIERARCHICAL KNOWLEDGE GRAPH**.
 
-### 1. ONTOLOGY (LABELS ONLY)
-- ENTITY TYPES: {entity_types}
+### 1. ONTOLOGY & DISCOVERY RULES
+- **SAFE ANCHOR**: `LegalEntity` (Use ONLY for companies, organizations, or government bodies).
+- **PLATINUM DISCOVERY**: For everything else (Business Models, Products, Roles, Strategies), **PRIORITIZE DISCOVERY**. 
+- If the text mentions a specific category (e.g., `Peer-to-Peer-Marketplace`, `Asset-Light-Model`, `Offshore-Subsidiary`), you **MUST** use that as the `entity_type` instead of a generic standard type.
+- **PARTICIPANTS**: Extract significant human roles or stakeholder groups (e.g., `Travelers`, `Hosts`, `Audit-Committee`) as entities.
+- **NEGATIVE ASSERTIONS**: If the text states that an entity *does not* do something, you **MUST** create a precise, direct relation (e.g., `DOES_NOT_OWN`, `EXCLUDES`). **DO NOT** use generic taxonomic relations like `INCLUDES` or `HAS_FAMILY` for these facts.
+- **DIRECT CONNECTIONS**: For platforms and networks, connect participants directly to the platform/marketplace entity using descriptive relations (e.g., `CONNECTS`, `PARTICIPATES_IN`).
+
+- STANDARD TYPES: {entity_types}
 - ALLOWED TRIPLES:
 {relations_str}
 
-### 2. STRUCTURAL MANDATES (EXECUTION STANDARDS)
+### 2. STRUCTURAL MANDATES
 {rules_str}
 
 ### 3. PERFECT EXAMPLES
 {examples_str}
 
 ### 4. FINAL INSTRUCTION
-Process the text below with PLATINUM PRECISION.
-OUTPUT MUST BE A SINGLE JSON OBJECT with EXACTLY these keys:
-- "thought_process": Reasoning for the hierarchy.
-- "entities": List of extracted components. Each entity MUST have:
-    - [temp_id, canonical_name, entity_type]
-    - "short_info": A 1-sentence descriptor of the entity (NEVER use "N/A", synthesize if needed).
-- "relations": List of connections. Each relation MUST have:
-    - [source_temp_id, relation_type, target_temp_id]
-    - "source_text": The EXACT VERBATIM SENTENCE from the text that proves this relation. (CRITICAL for evidence).
-    - "confidence": 0-1 score.
-
-MANDATORY: NO ORPHANS. Every node MUST lead back to the ROOT.
+Process the text below with absolute precision.
+OUTPUT MUST BE A SINGLE JSON OBJECT with:
+- "thought_process": Reasoning for the hierarchy and why specific types were discovered.
+- "entities": [temp_id, canonical_name, entity_type, short_info]
+- "relations": [source_temp_id, relation_type, target_temp_id, source_text, confidence]
 
 TEXT:
 {text}

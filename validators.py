@@ -56,12 +56,19 @@ class LogicGuard:
         root_id = str(root.temp_id)
 
         # --- PHASE 1: Taxonomy Anchoring (The Spine) ---
+        # Derive types dynamically from ontology or use safe defaults for the core spine
+        ont_types = {norm(t) for t in self.ontology.get("entity_types", [])}
+        
+        # Core structural types (The Spine) - These are mostly for internal healing
         pl_types = {"productline", "product", "item", "brand", "digitalproduct"}
         ps_types = {"service", "subscription"} 
         pf_types = {"productfamily", "productportfolio", "businessunit"}
         sf_types = {"serviceportfolio"}
         pd_types = {"productdomain", "industry", "subindustry"}
-        non_tax_types = {"person", "legalentity", "location", "facility", "competitor", "strategy", "capability", "financial", "financialreport"}
+        
+        # Everything else is considered 'non-taxonomic' (Strategy, Financial, Competitor, etc.)
+        # We define them as 'known' only if they are in the database ontology.
+        known_types = ont_types | pl_types | ps_types | pf_types | sf_types | pd_types
 
         # 1. Identify existing or required taxonomic anchors
         all_families = [e for e in payload.entities if norm(e.entity_type) in pf_types]
@@ -176,19 +183,23 @@ class LogicGuard:
             is_anchor = eid in keep_ids
             
             # 2. Is it a known type in our current ontology?
-            is_known = etype in ont_types or etype in pl_types or etype in ps_types or etype in non_tax_types
+            is_known = etype in known_types
             
-            if is_anchor or is_known:
-                allowed_entities.append(e)
-            else:
-                # NEW: Discovery Mode - Keep it but flag it for the learning engine
+            # CRITICAL DISCOVERY LOGIC:
+            # - If type is UNKNOWN: Discovery Log + Map to 'new_entity' type for KG
+            if not is_known:
+                # 1. Log the discovery for the learning engine
                 logger.info(f"Discovered new entity type: {etype_raw} for {e.canonical_name}")
                 payload.discoveries.append(OntologyDiscovery(
                     type='ENTITY',
-                    name=e.canonical_name,
+                    name=e.canonical_name, 
                     suggested_label=etype_raw,
                     context=f"Extracted from text: {e.short_info or e.description}"
                 ))
+                # 2. Keep the original suggested type and allow ingestion into KG
+                e.entity_type = etype_raw
+                allowed_entities.append(e)
+            elif is_anchor or is_known:
                 allowed_entities.append(e)
         
         payload.entities = allowed_entities
