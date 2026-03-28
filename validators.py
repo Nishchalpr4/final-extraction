@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import List, Dict, Any, Optional
-from models import ExtractionPayload, EntityCandidate, RelationCandidate
+from models import ExtractionPayload, EntityCandidate, RelationCandidate, OntologyDiscovery
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class LogicGuard:
             tgt_type = norm(tgt_ent.entity_type)
             tgt_name = str(tgt_ent.canonical_name).lower()
 
-            # If it's a Line/Service, force move it to the right family
+            # 1. Standard Taxonomic Re-anchoring (Line/Service -> Family)
             if tgt_type in pl_types or tgt_type in ps_types:
                 if service_fam_id and (tgt_type in ps_types or any(x in tgt_name for x in ["icloud", "music", "cloud", "service"])):
                     r.source_temp_id = service_fam_id
@@ -125,11 +125,25 @@ class LogicGuard:
                     r.source_temp_id = primary_fam_id
                 r.relation_type = "INCLUDES"
             
-            # If it's a family being linked to root, move it to domain
+            # 2. Family -> Domain
             elif tgt_type in pf_types and src_id == root_id and tgt_id != primary_fam_id:
                 r.source_temp_id = primary_dom_id
                 r.relation_type = "HAS_FAMILY"
             
+            # 3. Discover New Relations
+            rel_type = r.relation_type.upper().replace(" ", "_")
+            ont_rels = {norm(rt) for rt in self.ontology.get('relation_types', [])}
+            if norm(rel_type) not in ont_rels and norm(rel_type) not in tax_rel_types:
+                logger.info(f"Discovered new relation type: {rel_type}")
+                payload.discoveries.append(OntologyDiscovery(
+                    type='RELATION',
+                    name=rel_type,
+                    suggested_label=rel_type,
+                    context=f"Link between {entity_map[src_id].entity_type} and {entity_map[tgt_id].entity_type}",
+                    source_type=entity_map[src_id].entity_type,
+                    target_type=entity_map[tgt_id].entity_type
+                ))
+
             # Filter out existing spine relations to avoid duplicates before we add our own
             if r.relation_type in tax_rel_types and tgt_id in [primary_dom_id, primary_fam_id, service_fam_id]:
                 continue
@@ -149,15 +163,33 @@ class LogicGuard:
         keep_ids = {root_id, primary_dom_id, primary_fam_id}
         if service_fam_id: keep_ids.add(service_fam_id)
         
-        # Allowed entities are root, spine, lines, and non-taxonomic (Strategy, Financial, etc.)
+        # Get all allowed types from ontology (normalized)
+        ont_types = {norm(t) for t in self.ontology.get('entity_types', [])}
+        
         allowed_entities = []
         for e in payload.entities:
             eid = str(e.temp_id)
-            etype = norm(e.entity_type)
-            if eid in keep_ids or etype in pl_types or etype in ps_types or etype in non_tax_types:
+            etype_raw = e.entity_type
+            etype = norm(etype_raw)
+            
+            # 1. Is it a core taxonomic anchor?
+            is_anchor = eid in keep_ids
+            
+            # 2. Is it a known type in our current ontology?
+            is_known = etype in ont_types or etype in pl_types or etype in ps_types or etype in non_tax_types
+            
+            if is_anchor or is_known:
                 allowed_entities.append(e)
             else:
-                logger.info(f"Purging redundant node: {e.canonical_name} ({e.entity_type})")
+                # NEW: Discovery Mode - Keep it but flag it for the learning engine
+                logger.info(f"Discovered new entity type: {etype_raw} for {e.canonical_name}")
+                payload.discoveries.append(OntologyDiscovery(
+                    type='ENTITY',
+                    name=e.canonical_name,
+                    suggested_label=etype_raw,
+                    context=f"Extracted from text: {e.short_info or e.description}"
+                ))
+                allowed_entities.append(e)
         
         payload.entities = allowed_entities
         allowed_ids = {str(e.temp_id) for e in payload.entities}
